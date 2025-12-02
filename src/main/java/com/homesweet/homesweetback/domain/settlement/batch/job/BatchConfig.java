@@ -78,8 +78,9 @@ public class BatchConfig {
                 .listener(settlementSLAMonitorListener)
                 .listener(settlementChunkListener)
                 .faultTolerant()
-                .skip(Exception.class)
-                .skipLimit(10000)   // 10000건까지 skip 허용
+                .retry(Exception.class) //
+                .retryLimit(3)
+                .noSkip(Exception.class)
                 .build();
     }
     // step2 -> 주문 취소건 정산 취소
@@ -96,8 +97,9 @@ public class BatchConfig {
                 .listener(settlementSLAMonitorListener)
                 .listener(settlementChunkListener)
                 .faultTolerant()
-                .skip(Exception.class)
-                .skipLimit(5000)   // 5000건까지 skip 허용
+                .retry(Exception.class)
+                .retryLimit(3)
+                .noSkip(Exception.class)
                 .build();
     }
     // step3 -> 일별 정산 집계
@@ -113,6 +115,7 @@ public class BatchConfig {
     // step4 -> 주별 정산 집계
     @Bean
     public Step weeklyStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, WeeklySettlementTasklet weeklySettlementTasklet) {
+        System.out.println("🔵 weeklyStep Bean Loaded!");
         return new StepBuilder("weeklyStep", jobRepository)
                 .tasklet(weeklySettlementTasklet, transactionManager)
                 .listener(settlementStepListener)

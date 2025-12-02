@@ -28,6 +28,10 @@ public class SettlementCreateReader implements ItemReader<Order> {
     // JobParameters는 string 지원
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;
+    private Long lastId = 0L;
+    private int bufferIdx = 0;
+    private List<Order> buffer = List.of();
+    private static final int PAGE_SIZE = 1000;
     // 실제 주문을 하나씩 반환하는 내부 List 기반 reader
     private ListItemReader<Order> orderListItemReader;
 

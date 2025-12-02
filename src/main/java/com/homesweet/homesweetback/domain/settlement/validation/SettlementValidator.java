@@ -13,6 +13,7 @@ import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
+import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -150,6 +151,11 @@ public class SettlementValidator {
         }
         if (result.totalAmount() == null || result.fee() == null || result.vat() == null || result.refundAmount() == null || result.settlementAmount() == null) {
             throw new NullPointerException("정산 계산 결과에 NULL이 포함되어있습니다.");
+        }
+    }
+    public void validateTotals(SettlementTotals totals) {
+        if (totals == null) {
+            throw new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND);
         }
     }
 }

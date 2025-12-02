@@ -2,8 +2,10 @@ package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
 import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
+import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
+import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.WeeklyDateRangeCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
@@ -33,12 +35,15 @@ public class WeeklySettlementTasklet implements Tasklet {
     private final SettlementAggregator settlementAggregator;
     private final DailySettlementRepository dailySettlementRepository;
     private final SettlementSaver settlementSaver;
+    private final WeeklySettlementRepository weeklySettlementRepository;
 
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;
 
     @Override
     public RepeatStatus execute(StepContribution stepContribution, ChunkContext chunkContext) {
+        System.out.println("🟣 WeeklySettlementTasklet START");
+        System.out.println("🟣 cutoffString = " + cutoffString);
         // 1. 주별 계산
         LocalDate cutoff = LocalDateTime.parse(cutoffString).toLocalDate();
         LocalDate weekStart = WeeklyDateRangeCalculator.monday(cutoff);
@@ -48,32 +53,15 @@ public class WeeklySettlementTasklet implements Tasklet {
         // 2. 정산 대상 사용자 목록 조회
         List<Long> userIds = settlementRepository.findDistinctUserIds();
         for (Long userId : userIds) {
-            // 3. 일별 정산 데이터 조회
-            List<DailySettlement> settlements = dailySettlementRepository.findByDailySettlement(userId);
-            log.info("[주별 집계] userId= {} 조회된 정산 건수={}", userId, settlements.size());
+            short year = (short) weekStart.getYear();
+            byte month = (byte) weekStart.getMonthValue();
+            // 3. DB SUM 한번에
+            SettlementTotals totals = settlementRepository.sumTotals(userId, weekStart.atStartOfDay(), weekEnd.atStartOfDay());
             // 4. 검증
-            settlementValidator.validateWeekly(settlements);
-            if (settlements.isEmpty()) {
-                log.info("[주별 집계] userId= {} {} 데이터 없음", userId, cutoff);
-            }
-            // 5. 주 기준으로 그룹핑 + 합산
-            Map<LocalDate, SettlementTotals> weeklyTotalsMap =
-                    settlementAggregator.aggregate(
-                            settlements,
-                            d -> WeeklyDateRangeCalculator.monday(d.getSettlementDate().toLocalDate()),
-                            d -> new SettlementTotals(
-                                    d.getTotalSales(),
-                                    d.getTotalFee(),
-                                    d.getTotalVat(),
-                                    d.getTotalRefund(),
-                                    d.getTotalSettlement()
-                            )
-                    );
-            // 6. upsert(저장)
-            weeklyTotalsMap.forEach((date, totals) -> {
-                settlementSaver.saveWeekly(userId, date, totals);
-            });
-            log.info("[주별 집계] userId= {} {} ~ {} 정산 {}건 완료",  userId, weekStart, weekEnd, settlements.size());
+            settlementValidator.validateTotals(totals);
+            // 5. 저장
+            settlementSaver.saveWeekly(userId, year, month, weekStart, weekEnd, totals);
+            log.info("[주별 집계] userId={} 날짜={} 총 정산금액={}", userId, cutoff, totals.getTotalSettlement());
         }
         log.info("WeeklySettlementTasklet 성공");
         return RepeatStatus.FINISHED;

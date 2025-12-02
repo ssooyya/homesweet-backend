@@ -7,6 +7,7 @@ import com.homesweet.homesweetback.domain.order.entity.OrderStatus;
 import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementResponse;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 
+import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -33,7 +34,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
     Optional<User> findBySellerId(@Param("orderId") Long orderId);
 
     // 주문건별에서 전체 목록 조회
-    @Query("""
+    @Query(value = """
                 SELECT o.orderedAt, o.orderNumber,
                     CONCAT(MIN(p.name), CASE WHEN COUNT(oi) > 1 THEN CONCAT (' 외 ', (COUNT(oi) - 1), '개') ELSE '' END)
                    , s.salesAmount,s.fee,s.vat, s.refundAmount, s.settlementAmount,s.settlementDate, s.settlementStatus
@@ -46,6 +47,14 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
                   AND (:settlementStatus IS NULL OR :settlementStatus = '' OR s.settlementStatus = :settlementStatus)
                 GROUP BY o.orderedAt, o.orderNumber, s.salesAmount, s.fee, s.vat, s.refundAmount, s.settlementAmount, s.settlementDate, s.settlementStatus
                 ORDER BY o.orderedAt DESC
+            """, countQuery = """
+                SELECT COUNT(DISTINCT s.settlementId)
+                FROM Settlement s
+                JOIN s.order o
+                WHERE s.userId = :userId
+                  AND o.orderedAt >= :startDate
+                  AND o.orderedAt < :endDate
+                  AND (:settlementStatus IS NULL OR :settlementStatus = '' OR s.settlementStatus = :settlementStatus)
             """)
     Page<SettlementResponse> findBySettlement(@Param("userId") Long userId, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate, @Param("settlementStatus") String settlementStatus, Pageable pageable);
 
@@ -112,17 +121,16 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 //    SELECT o FROM Order o
 //    LEFT JOIN Settlement s ON o.id = s.order.id
 //    WHERE o.orderStatus = :orderStatus
-//    AND o.orderedAt > :cutOffTime
+//    AND o.orderedAt <= :cutOffTime
 //    AND NOT EXISTS (SELECT 1 FROM Settlement s2 WHERE s2.order.id = o.id)
 //    """)
     @Query("""
-                SELECT o FROM Order o
-                WHERE o.orderStatus = :orderStatus
-                AND o.orderedAt > :cutOffTime
-                AND NOT EXISTS (
-                    SELECT 1 FROM Settlement s2 WHERE s2.order.id = o.id
-                )
-            """)
+    SELECT o FROM Order o
+        WHERE o.orderStatus = :orderStatus
+        AND o.orderedAt <= :cutOffTime
+        AND o.settlementProcessed = false
+        ORDER BY o.orderedAt ASC
+    """)
     List<Order> findUnSettlementOrders(@Param("orderStatus") OrderStatus orderStatus, @Param("cutOffTime") LocalDateTime cutoffTime);
 
     // 정산 취소건 찾기
@@ -134,4 +142,30 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
             AND s.settlementId IS NOT NULL
             """)
     List<Order> findCancelSettlement(@Param("deliveryStatus") DeliveryStatus deliveryStatus, @Param("cutOffTime") LocalDateTime cutoffTime);
+    // 정산 생성시 정산 여부 플래그 업데이트
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE Order o SET o.settlementProcessed = true WHERE o.id IN :orderIds
+    """)
+    void markUpdateFlag(List<Long> orderIds);
+
+    @Query("""
+        SELECT new com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals(
+            CAST(COALESCE(SUM(s.salesAmount),0) AS bigdecimal),
+            CAST(COALESCE(SUM(s.fee),0) AS bigdecimal),
+            CAST(COALESCE(SUM(s.vat),0) AS bigdecimal),
+            CAST(COALESCE(SUM(s.refundAmount),0) AS bigdecimal),
+            CAST(COALESCE(SUM(s.settlementAmount),0) AS bigdecimal)
+        )
+        FROM Settlement s
+        WHERE s.userId = :userId
+        AND s.settlementDate >= :start
+        AND s.settlementDate < :end
+    """)
+    SettlementTotals sumTotals(
+            @Param("userId") Long userId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

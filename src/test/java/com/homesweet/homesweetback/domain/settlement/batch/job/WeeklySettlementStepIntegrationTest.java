@@ -19,6 +19,9 @@ import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
+import com.homesweet.homesweetback.domain.settlement.util.TestAuditingConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +34,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -41,8 +45,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.batch.job.enabled=true")
 @SpringBatchTest
 @ActiveProfiles("test")
-@Import(BatchConfig.class)
+@Import({BatchConfig.class, TestAuditingConfig.class})
 @DisplayName("주별 집계 step 통합테스트")
+@TestPropertySource(properties = {
+        "logging.level.com.homesweet=DEBUG",
+        "logging.level.org.springframework.batch=DEBUG"
+})
 class WeeklySettlementStepIntegrationTest {
     @Autowired
     private JobLauncherTestUtils jobLauncherTestUtils;
@@ -85,7 +93,18 @@ class WeeklySettlementStepIntegrationTest {
     @Disabled("DailySettlement 생성 이슈로 인해 임시 비활성화")
     @DisplayName("weeklyStep 실행 시 주별 집계가 된다.")
     void weeklyStep() {
-        LocalDateTime orderedAt = LocalDateTime.now().minusHours(1);
+        // --- 1) cutoff + 주문시간 ----
+        LocalDateTime now = LocalDateTime.now();
+
+        String cutoff = now.plusDays(1).toLocalDate().atStartOfDay().toString();
+        LocalDate cutoffDate = LocalDate.parse(cutoff.substring(0, 10)); // FIX POINT ★
+
+        LocalDateTime orderedAt = cutoffDate.minusDays(1).atTime(12, 0);
+
+        System.out.println("orderedAt = " + orderedAt);
+        System.out.println("cutoff    = " + cutoff);
+
+        // --- 2) 기본 엔티티 생성 ----
         Grade grade = gradeRepository.save(BatchHelperData.createGrade());
         User seller = userRepository.save(BatchHelperData.createSeller(grade));
 
@@ -94,59 +113,63 @@ class WeeklySettlementStepIntegrationTest {
         SkuEntity sku = skuRepository.save(BatchHelperData.createSku(product));
 
         Order order = BatchHelperData.createCompletedOrder(seller, orderedAt);
-        order = BatchHelperData.setupFullOrderGraph(order, sku);
-        orderRepository.saveAndFlush(order);
+        orderRepository.saveAndFlush(BatchHelperData.setupFullOrderGraph(order, sku));
 
-        LocalDate cutoffDate = orderedAt.toLocalDate();
-        String cutoff = cutoffDate.atStartOfDay().toString();
-
+        // --- 3) settlementCreateStep 실행 ----
         JobParameters createParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(), true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
         jobLauncherTestUtils.launchStep("settlementCreateStep", createParams);
 
-        assertThat(settlementRepository.findAll())
-                .as("Settlement는 1개 생성되어야 한다")
-                .hasSize(1);
+        assertThat(settlementRepository.count())
+                .as("[1] Settlement 생성 확인")
+                .isEqualTo(1L);
 
+        // --- 4) dailyStep 실행 ----
         JobParameters dailyParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(),true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
-        JobExecution dailyExe = jobLauncherTestUtils.launchStep("dailyStep", dailyParams);
-        assertThat(dailySettlementRepository.findAll())
-                .as("DailySettlement는 1개 생성되어야 한다")
-                .hasSize(1);
+        jobLauncherTestUtils.launchStep("dailyStep", dailyParams);
 
+        assertThat(dailySettlementRepository.count())
+                .as("[2] DailySettlement 생성 확인")
+                .isEqualTo(1L);
+
+        // --- 5) weeklyStep 실행 ----
         JobParameters weeklyParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff,false)
-                .addLong("time", System.currentTimeMillis(),true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
-        JobExecution weeklyExe = jobLauncherTestUtils.launchStep("weeklyStep", weeklyParams);
-        assertThat(weeklyExe.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        jobLauncherTestUtils.launchStep("weeklyStep", weeklyParams);
 
         List<WeeklySettlement> weekList = weeklySettlementRepository.findAll();
+
         assertThat(weekList)
-                .as("WeeklySettlement는 1개 생성되어야 한다")
+                .as("[3] WeeklySettlement 생성 확인")
                 .hasSize(1);
 
         WeeklySettlement weekly = weekList.get(0);
 
+        // --- 6) 주차 범위 검증 ----
         LocalDate weekStart = cutoffDate.with(DayOfWeek.MONDAY);
-        LocalDate weekEnd = cutoffDate.with(DayOfWeek.SUNDAY);
+        LocalDate weekEnd   = cutoffDate.with(DayOfWeek.SUNDAY);
 
         assertThat(weekly.getWeekStartDate()).isEqualTo(weekStart);
         assertThat(weekly.getWeekEndDate()).isEqualTo(weekEnd);
 
+        // --- 7) 정산 합계 검증 ----
         Settlement st = settlementRepository.findAll().get(0);
 
         assertThat(weekly.getTotalSales()).isEqualTo(st.getSalesAmount());
         assertThat(weekly.getTotalFee()).isEqualTo(st.getFee());
         assertThat(weekly.getTotalVat()).isEqualTo(st.getVat());
         assertThat(weekly.getTotalSettlement()).isEqualTo(st.getSettlementAmount());
+
+
     }
 }

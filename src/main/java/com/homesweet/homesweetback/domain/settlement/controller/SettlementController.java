@@ -1,10 +1,14 @@
 package com.homesweet.homesweetback.domain.settlement.controller;
 
+import com.homesweet.homesweetback.domain.order.dto.response.OrderReadyResponse;
 import com.homesweet.homesweetback.domain.settlement.dto.response.*;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.service.*;
 import lombok.RequiredArgsConstructor;
 import org.flywaydb.core.internal.util.StringUtils;
+import org.springframework.batch.core.*;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,6 +28,9 @@ public class SettlementController {
     private final WeeklySettlementService weeklySettlementService;
     private final YearlySettlementService yearlySettlementService;
     private final SettlementService settlementService;
+    private final JobLauncher jobLauncher;
+    private final Job settlementJob;
+
     // 1. 전체 주문건별 +  정산 상태별 조회
     @GetMapping("/all/{userId}")
     public ResponseEntity<Page<SettlementResponse>> getSettlementStatus(@PathVariable Long userId, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDate startDate, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDate endDate, @RequestParam(required = false) String settlementStatus, Pageable pageable) {
@@ -90,4 +97,25 @@ public class SettlementController {
 //        yearlySettlementService.getYearlySettlement(userId);
 //        return ResponseEntity.ok().build();
 //    }
+    // 부하테스트용
+    @PostMapping("/batch/run")
+    public ResponseEntity<String> runJob(){
+        LocalDateTime cutoff = LocalDateTime.now(); // 오늘 전체
+
+        try {
+            JobParameters params = new JobParametersBuilder()
+                    .addString("cutoff", cutoff.toString())
+                    .addLong("timestamp", System.currentTimeMillis()) // 매번 새로운 JobInstance
+                    .toJobParameters();
+
+            JobExecution jobExecution = jobLauncher.run(settlementJob, params);
+
+            return ResponseEntity.ok("SETTLEMENT BATCH STARTED (executionId=" + jobExecution.getId() + ")");
+
+        } catch (JobExecutionAlreadyRunningException e) {
+            return ResponseEntity.status(409).body("SETTLEMENT BATCH ALREADY RUNNING");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("SETTLEMENT BATCH FAILED: " + e.getMessage());
+        }
+    }
 }

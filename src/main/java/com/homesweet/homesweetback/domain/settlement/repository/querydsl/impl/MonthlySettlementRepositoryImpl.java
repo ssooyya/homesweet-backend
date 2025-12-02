@@ -9,112 +9,52 @@ import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Objects;
 
+@Profile("!test")
 @Repository
 @RequiredArgsConstructor
 public class MonthlySettlementRepositoryImpl implements CustomMonthlySettlementRepository {
-    private final JPAQueryFactory jpaQueryFactory;
-    private final QWeeklySettlement w = QWeeklySettlement.weeklySettlement;
-    private final QMonthlySettlement m = QMonthlySettlement.monthlySettlement;
     private final EntityManager em;
 
     @Override
     @Transactional
-    public int upsertMonthly(Long userId, Short year, Byte month, SettlementTotals totals) {
+    public void upsertMonthly(Long userId, Short year, Byte month, SettlementTotals totals) {
         Objects.requireNonNull(userId, "userId must not be null");
         Objects.requireNonNull(year, "year must not be null");
         Objects.requireNonNull(month, "month must not be null");
         Objects.requireNonNull(totals, "totals must not be null");
 
-        Long count = jpaQueryFactory
-                .select(w.count())
-                .from(w)
-                .where(
-                        w.userId.eq(userId),
-                        w.year.eq(year),
-                        w.month.eq(month)
-                )
-                .fetchOne();
-
-        // ✔ weekly 데이터 없음 → 월 집계할 데이터 없음
-        if (count == null || count == 0) {
-            return 0;
-        }
-
-        // 1) weekly SUM 조회
-        Tuple sums = jpaQueryFactory
-                .select(
-                        w.totalSales.sum().coalesce(BigDecimal.ZERO),
-                        w.totalFee.sum().coalesce(BigDecimal.ZERO),
-                        w.totalVat.sum().coalesce(BigDecimal.ZERO),
-                        w.totalRefund.sum().coalesce(BigDecimal.ZERO),
-                        w.totalSettlement.sum().coalesce(BigDecimal.ZERO)
-                )
-                .from(w)
-                .where(
-                        w.userId.eq(userId),
-                        w.year.eq(year),
-                        w.month.eq(month)
-                )
-                .fetchOne();
-
-        if (sums == null) {
-            return 0;
-        }
-
-        BigDecimal totalSales = sums.get(0, BigDecimal.class);
-        BigDecimal totalFee = sums.get(1, BigDecimal.class);
-        BigDecimal totalVat = sums.get(2, BigDecimal.class);
-        BigDecimal totalRefund = sums.get(3, BigDecimal.class);
-        BigDecimal totalSettlement = sums.get(4, BigDecimal.class);
-
-        // 2) 기존 월 데이터 조회
-        MonthlySettlement exists = jpaQueryFactory
-                .selectFrom(m)
-                .where(
-                        m.userId.eq(userId),
-                        m.year.eq(year),
-                        m.month.eq(month)
-                )
-                .fetchOne();
-
-        // 3) INSERT
-        if (exists == null) {
-            MonthlySettlement newRow = MonthlySettlement.builder()
-                    .userId(userId)
-                    .year(year)
-                    .month(month)
-                    .totalSales(totalSales)
-                    .totalFee(totalFee)
-                    .totalVat(totalVat)
-                    .totalRefund(totalRefund)
-                    .totalSettlement(totalSettlement)
-                    .build();
-
-            em.persist(newRow);
-            em.flush();
-            em.clear();
-            return 1;
-        }
-
-        // 4) UPDATE
-        int result = (int) jpaQueryFactory.update(m)
-                .set(m.totalSales, totalSales)
-                .set(m.totalFee, totalFee)
-                .set(m.totalVat, totalVat)
-                .set(m.totalRefund, totalRefund)
-                .set(m.totalSettlement, totalSettlement)
-                .where(m.monthlyId.eq(exists.getMonthlyId()))
-                .execute();
-
-        em.flush();
-        em.clear();
-
-        return result;
+        em.createNativeQuery("""
+                        INSERT INTO monthly_settlements (
+                            user_id, year_value, month_value, total_sales, total_fee, total_vat, total_refund, total_settlement
+                        )
+                        VALUES (
+                            :userId, :yearValue, :monthValue, :totalSales, :totalFee, :totalVat, :totalRefund, :totalSettlement
+                        ) AS new
+                        ON DUPLICATE KEY UPDATE
+                            total_sales = new.total_sales,
+                            total_fee = new.total_fee,
+                            total_vat = new.total_vat,
+                            total_refund = new.total_refund,
+                            total_settlement = new.total_settlement
+                        """)
+                .setParameter("userId", userId)
+                .setParameter("yearValue", year)
+                .setParameter("monthValue", month)
+                .setParameter("totalSales", totals.getTotalSales())
+                .setParameter("totalFee", totals.getTotalFee())
+                .setParameter("totalVat", totals.getTotalVat())
+                .setParameter("totalRefund", totals.getTotalRefund())
+                .setParameter("totalSettlement", totals.getTotalSettlement())
+                .executeUpdate();
     }
 }

@@ -15,12 +15,14 @@ import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+
 public class DailySettlementService {
     private final DailySettlementRepository dailySettlementRepository;
     private final SettlementRepository settlementRepository;
@@ -39,6 +42,9 @@ public class DailySettlementService {
     private final SettlementStatusUpdater settlementStatusUpdater;
     private final SettlementSaver settlementSaver;
     private final SettlementCalculator settlementCalculator;
+
+    @Autowired(required = false)
+    private Clock clock = Clock.systemDefaultZone();
 
     // 일별 데이터 조회 (페이지 처리)
     @Transactional(readOnly = true)

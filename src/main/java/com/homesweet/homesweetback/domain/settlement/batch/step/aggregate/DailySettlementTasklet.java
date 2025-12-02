@@ -1,7 +1,10 @@
 package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
+import com.homesweet.homesweetback.common.exception.BusinessException;
+import com.homesweet.homesweetback.common.exception.ErrorCode;
 import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
+import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.SettlementStatusUpdater;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
@@ -17,6 +20,7 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +40,8 @@ public class DailySettlementTasklet implements Tasklet {
     private final SettlementAggregator settlementAggregator;
     private final SettlementSaver settlementSaver;
     private final SettlementStatusUpdater settlementStatusUpdater;
+    private final DailySettlementRepository dailySettlementRepository;
+    private final Clock clock;
 
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;
@@ -44,6 +50,15 @@ public class DailySettlementTasklet implements Tasklet {
     public RepeatStatus execute(StepContribution stepContribution, ChunkContext chunkContext) {
         // 1. 일자 계산
         LocalDate cutoffDate = LocalDateTime.parse(cutoffString).toLocalDate();
+//        LocalDate cutoffDate;
+//
+//        try {
+//            cutoffDate = LocalDateTime.parse(cutoffString).toLocalDate();
+//        } catch (Exception e) {
+//            // fallback → 테스트는 fixed clock 적용됨
+//            cutoffDate = LocalDate.now(clock);
+//        }
+
         LocalDateTime start = cutoffDate.atStartOfDay();
         LocalDateTime end = cutoffDate.plusDays(1).atStartOfDay();
         log.info("DailySettlementTasklet 시작: {}", cutoffDate);
@@ -51,36 +66,15 @@ public class DailySettlementTasklet implements Tasklet {
         // 2. 정산 대상 사용자 목록 조회
         List<Long> userIds = settlementRepository.findDistinctUserIds();
         for (Long userId : userIds) {
-            // 3. 하루 정산 데이터 조회
-            List<Settlement> settlements = settlementRepository.findBySettlementDateRange(userId, start, end);
-            log.info("[일별 집계] userId={} 조회된 정산건수={}", userId, settlements.size());
+            // 3. DB SUM 한번에
+            SettlementTotals totals = settlementRepository.sumTotals(userId, start, end);
             // 4. 검증
-            settlementValidator.validateDaily(settlements);
-            if (settlements.isEmpty()) {
-                log.info("[일별 집계] userId= {} {} 데이터 없음", userId, cutoffDate);
-            }
-            // 5. 일자 기준으로 그룹핑 + 합산
-            Map<LocalDate, SettlementTotals> dailyTotalsMap =
-                    settlementAggregator.aggregate(
-                            settlements,
-                            s -> s.getSettlementDate().toLocalDate(),
-                            s -> new SettlementTotals(
-                                    s.getSalesAmount(),
-                                    s.getFee(),
-                                    s.getVat(),
-                                    s.getRefundAmount(),
-                                    s.getSettlementAmount()
-                            )
-                    );
-
-            // 6. upsert (저장)
-            dailyTotalsMap.forEach((date, totals) -> {
-                settlementSaver.saveDaily(userId, date, totals);
-                log.info("[일별 집계] userId={} 날짜={} 총 정산금액={}", userId, date, totals.getTotalSettlement());
-            });
-            // 7. 정산 상태 변경 -> 'COMPLETED'
+            settlementValidator.validateTotals(totals);
+            // 5. 저장
+            settlementSaver.saveDaily(userId, cutoffDate, totals);
+            // 6. 상태 업데이트
             settlementStatusUpdater.markDailyCompleted(userId, start, end);
-            log.info("[일별 집계] userId={} {} 정산 {}건 완료",  userId, start, settlements.size());
+            log.info("[일별 집계] userId={} 날짜={} 총 정산금액={}", userId, cutoffDate, totals.getTotalSettlement());
         }
         log.info("DailySettlementTasklet 성공");
         return RepeatStatus.FINISHED;
