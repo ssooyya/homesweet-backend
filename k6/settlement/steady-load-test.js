@@ -5,7 +5,7 @@ import { check, sleep } from "k6";
 // 토스 api mock 처리
 
 // JWT token
-const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDU2MTU0MywiZXhwIjoxNzY0NTc5NTQzfQ.zT2FpW5FBqPEYZrMFjeY7Bp1T-F1fk88oH7puadwobujSPeWdOXL5Gw0YsI5QWV2l5lg7_ATOPP1VbDuKf7Z2g";
+const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDY0ODgwMywiZXhwIjoxNzY0NjY2ODAzfQ.DBVN1y_zaKgiOjZzqsElDb8mjKdzHvL5POti1RunxYcYque4PapQ3ZSsdA0TnJHYokAlTuWFVdaNzd1R1-wR4g";
 
 export const options = {
     discardResponseBodies: false,
@@ -13,11 +13,11 @@ export const options = {
         // 1) 주문 유입 시뮬레이션 (steady load)
         order_inflow: {
             executor: "constant-arrival-rate",
-            rate: 175,              // 초당 0.1건 → 하루 약 1만건 -> 5분동안 9000건
+            rate: 500,              // 초당 0.1건 → 하루 약 1만건 -> 5분동안 9000건
             timeUnit: "1s",
             duration: "10m",         // 10분 동안 테스트
             preAllocatedVUs: 50,
-            maxVUs: 500,
+            maxVUs: 1000,
             exec: "orderFlow",
         },
 

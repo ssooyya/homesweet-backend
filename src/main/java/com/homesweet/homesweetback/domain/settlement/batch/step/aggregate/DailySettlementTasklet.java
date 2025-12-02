@@ -41,7 +41,7 @@ public class DailySettlementTasklet implements Tasklet {
     private final SettlementSaver settlementSaver;
     private final SettlementStatusUpdater settlementStatusUpdater;
     private final DailySettlementRepository dailySettlementRepository;
-    private final Clock clock;
+//    private final Clock clock;
 
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;
