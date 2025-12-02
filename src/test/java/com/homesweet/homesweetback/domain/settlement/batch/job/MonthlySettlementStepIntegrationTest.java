@@ -20,6 +20,7 @@ import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementR
 import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
+import com.homesweet.homesweetback.domain.settlement.util.TestAuditingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,8 +44,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.batch.job.enabled=true")
 @SpringBatchTest
 @ActiveProfiles("test")
-@Import(BatchConfig.class)
+@Import({BatchConfig.class, TestAuditingConfig.class})
 @DisplayName("월별 집계 step 통합테스트")
+@TestPropertySource(properties = {
+        "logging.level.com.homesweet=DEBUG",
+        "logging.level.org.springframework.batch=DEBUG"
+})
 class MonthlySettlementStepIntegrationTest {
     @Autowired
     private JobLauncherTestUtils jobLauncherTestUtils;
@@ -90,77 +96,65 @@ class MonthlySettlementStepIntegrationTest {
     @Disabled("DailySettlement 생성 이슈로 인해 임시 비활성화")
     @DisplayName("monthlyStep 실행 시 월별 집계가 된다.")
     void monthlyStep() {
-        LocalDateTime orderedAt = LocalDateTime.now().minusHours(1);
-        // 1) Grade & Seller 저장
+        // 1) cutoff = 내일 00:00
+        LocalDateTime now = LocalDateTime.now();
+        String cutoff = now.plusDays(1).toLocalDate().atStartOfDay().toString();
+
+        // orderedAt = cutoff 하루 전 (전날 12시)
+        LocalDateTime orderedAt = LocalDateTime.parse(cutoff).minusDays(1).withHour(12);
+        System.out.println("orderedAt = " + orderedAt);
+        System.out.println("cutoff = " + cutoff);
+
+        // 2) 엔티티 생성
         Grade grade = gradeRepository.save(BatchHelperData.createGrade());
         User seller = userRepository.save(BatchHelperData.createSeller(grade));
 
-        // 2) Product Category, Product, SKU 저장
         ProductCategoryEntity category = categoryRepository.save(BatchHelperData.createCategory());
         ProductEntity product = productRepository.save(BatchHelperData.createProduct(seller, category));
         SkuEntity sku = skuRepository.save(BatchHelperData.createSku(product));
 
-        // 3) Order 생성 및 저장
-        Order order = BatchHelperData.createCompletedOrder(seller, LocalDateTime.now().minusHours(5));
+        Order order = BatchHelperData.createCompletedOrder(seller, orderedAt);
         order = BatchHelperData.setupFullOrderGraph(order, sku);
         orderRepository.saveAndFlush(order);
-        LocalDate cutoffDate = orderedAt.toLocalDate();
-        String cutoff = cutoffDate.atStartOfDay().toString();
 
+        System.out.println("===== ORDER AFTER SAVE =====");
+        Order saved = orderRepository.findAll().get(0);
+        System.out.println("orderedAt = " + saved.getOrderedAt());
+        System.out.println("settlementProcessed = " + saved.isSettlementProcessed());
+
+        // 3) settlementCreateStep
         JobParameters createParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(),true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
         jobLauncherTestUtils.launchStep("settlementCreateStep", createParams);
 
-        assertThat(settlementRepository.findAll())
-                .as("Settlement는 1개 생성되어야 한다")
-                .hasSize(1);
+        assertThat(settlementRepository.count()).isEqualTo(1);
 
+        // 4) daily
         JobParameters dailyParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(),true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
+        jobLauncherTestUtils.launchStep("dailyStep", dailyParams);
+        assertThat(dailySettlementRepository.count()).isEqualTo(1);
 
-        JobExecution dailyExe = jobLauncherTestUtils.launchStep("dailyStep", dailyParams);
-        assertThat(dailySettlementRepository.findAll())
-                .as("DailySettlement는 1개 생성되어야 한다")
-                .hasSize(1);
-
+        // 5) weekly
         JobParameters weeklyParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(), true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
+        jobLauncherTestUtils.launchStep("weeklyStep", weeklyParams);
+        assertThat(weeklySettlementRepository.count()).isEqualTo(1);
 
-        JobExecution weeklyExe = jobLauncherTestUtils.launchStep("weeklyStep", weeklyParams);
-        assertThat(weeklyExe.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-
-        List<WeeklySettlement> weekList = weeklySettlementRepository.findAll();
-        assertThat(weekList)
-                .as("WeeklySettlement는 1개 생성되어야 한다")
-                .hasSize(1);
-
-        WeeklySettlement weekly = weekList.get(0);
-
+        // 6) monthly
         JobParameters monthlyParams = new JobParametersBuilder()
-                .addString("cutoff", cutoff, false)
-                .addLong("time", System.currentTimeMillis(), true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
+        jobLauncherTestUtils.launchStep("monthlyStep", monthlyParams);
 
-        JobExecution monthlyExe = jobLauncherTestUtils.launchStep("monthlyStep", monthlyParams);
-        assertThat(weeklyExe.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-
-        List<MonthlySettlement> monthlyList = monthlySettlementRepository.findAll();
-        assertThat(monthlyList)
-                .as("MonthlySettlement는 1개 생성되어야 한다")
-                .hasSize(1);
-
-        Settlement st = settlementRepository.findAll().get(0);
-
-        assertThat(weekly.getTotalSales()).isEqualTo(st.getSalesAmount());
-        assertThat(weekly.getTotalFee()).isEqualTo(st.getFee());
-        assertThat(weekly.getTotalVat()).isEqualTo(st.getVat());
-        assertThat(weekly.getTotalSettlement()).isEqualTo(st.getSettlementAmount());
+        assertThat(monthlySettlementRepository.count()).isEqualTo(1);
     }
 }

@@ -1,13 +1,9 @@
 package com.homesweet.homesweetback.domain.settlement.util.saver;
 
-import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.YearlySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.DailySettlementRepositoryImpl;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.MonthlySettlementRepositoryImpl;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.WeeklySettlementRepositoryImpl;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.YearlySettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.DailySettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.MonthlySettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.WeeklySettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.YearlySettlementRepositoryImpl;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +40,21 @@ class SettlementSaverTest {
     @Mock
     private YearlySettlementRepositoryImpl yearlySettlementRepository;
 
+
+    private final Long userId = 1L;
+    private final LocalDate weekStart = LocalDate.of(2025, 11, 3);
+    private final LocalDate weekEnd = weekStart.plusDays(6);
+    private final short year = (short) weekStart.getYear();
+    private final byte month = (byte) weekStart.getMonthValue();
+
+    private final SettlementTotals totals = new SettlementTotals(
+            BigDecimal.valueOf(100000),
+            BigDecimal.valueOf(5000),
+            BigDecimal.valueOf(10000),
+            BigDecimal.ZERO,
+            BigDecimal.valueOf(85000)
+    );
+
     @Nested
     @DisplayName("성공 케이스")
     class Success {
@@ -71,22 +82,12 @@ class SettlementSaverTest {
         @DisplayName("정상적으로 weekly upsert가 수행된다")
         void saveWeekly_success() {
             // given
-            Long userId = 1L;
-            LocalDate weekStart = LocalDate.of(2025, 11, 3);
-            LocalDate expectedWeekEnd = weekStart.plusDays(6);
 
-            SettlementTotals totals = new SettlementTotals(
-                    BigDecimal.valueOf(100000),
-                    BigDecimal.valueOf(5000),
-                    BigDecimal.valueOf(10000),
-                    BigDecimal.ZERO,
-                    BigDecimal.valueOf(85000)
-            );
             // when
-            settlementSaver.saveWeekly(userId, weekStart, totals);
+            settlementSaver.saveWeekly(userId, year, month, weekStart, weekEnd, totals);
             // then
             verify(weeklySettlementRepository, times(1))
-                    .upsertWeekly(eq(userId), eq(weekStart), eq(totals));
+                    .upsertWeekly(eq(userId), eq(year), eq(month),eq(weekStart), eq(weekEnd), eq(totals));
         }
 
         @Test
@@ -94,13 +95,6 @@ class SettlementSaverTest {
         void saveMonthly_success() {
             // given
             YearMonth ym = YearMonth.of(2025, 3);
-            SettlementTotals totals = new SettlementTotals(
-                    BigDecimal.valueOf(100000),
-                    BigDecimal.valueOf(5000),
-                    BigDecimal.valueOf(10000),
-                    BigDecimal.ZERO,
-                    BigDecimal.valueOf(85000)
-            );
             // when
             settlementSaver.saveMonthly(1L, ym, totals);
 
@@ -117,16 +111,7 @@ class SettlementSaverTest {
         @Test
         @DisplayName("saveYearly 정상 호출 - upsertYearly 1회 실행")
         void saveYearly_success() {
-            Long userId = 1L;
-            Short year = 2025;
 
-            SettlementTotals totals = new SettlementTotals(
-                    BigDecimal.valueOf(100000),
-                    BigDecimal.valueOf(5000),
-                    BigDecimal.valueOf(10000),
-                    BigDecimal.ZERO,
-                    BigDecimal.valueOf(85000)
-            );
             settlementSaver.saveYearly(userId, year, totals);
 
             verify(yearlySettlementRepository, times(1))
@@ -165,7 +150,7 @@ class SettlementSaverTest {
             SettlementTotals totals = SettlementTotals.empty();
 
             assertThatThrownBy(() ->
-                    settlementSaver.saveWeekly(1L, null, totals)
+                    settlementSaver.saveWeekly(1L, year, month, null, weekEnd, totals)
             ).isInstanceOf(NullPointerException.class);
         }
 
@@ -177,10 +162,10 @@ class SettlementSaverTest {
             SettlementTotals totals = SettlementTotals.empty();
             doThrow(new RuntimeException("DB error"))
                     .when(weeklySettlementRepository)
-                    .upsertWeekly(any(), any(), any());
+                    .upsertWeekly(any(), any(),any(), any(),any(), any());
 
             assertThatThrownBy(() ->
-                    settlementSaver.saveWeekly(userId, weekStart, totals)
+                    settlementSaver.saveWeekly(userId, year, month, weekStart, weekEnd, totals)
             )
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("DB error");

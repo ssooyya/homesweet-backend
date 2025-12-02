@@ -25,6 +25,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
@@ -78,41 +79,50 @@ class MonthlySettlementTaskletTest {
         @Test
         @DisplayName("단일 사용자 월별 집계 성공")
         void execute_success_singleUser() {
+            Long userId = 10L;
 
-            Long userId = 11L;
+            YearMonth ym = YearMonth.of(2025, 11);
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            WeeklySettlement w1 = HelperData.getWeeklySettlement();
-            given(weeklySettlementRepository.findByWeeklySettlement(userId))
-                    .willReturn(List.of(w1));
+            given(settlementRepository.sumTotals(
+                    eq(userId),
+                    any(LocalDateTime.class),
+                    any(LocalDateTime.class)
+            )).willReturn(new SettlementTotals(
+                    java.math.BigDecimal.TEN,
+                    java.math.BigDecimal.ONE,
+                    java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.valueOf(9)
+            ));
 
-            doNothing().when(settlementValidator).validateMonthly(anyList());
+            doNothing().when(settlementValidator).validateTotals(any());
 
-            RepeatStatus status = monthlySettlementTasklet.execute(contribution, context);
+            RepeatStatus result = monthlySettlementTasklet.execute(contribution, context);
 
-            assertThat(status).isEqualTo(RepeatStatus.FINISHED);
+            assertThat(result).isEqualTo(RepeatStatus.FINISHED);
 
             verify(settlementSaver, atLeastOnce())
-                    .saveMonthly(eq(userId), any(YearMonth.class), any(SettlementTotals.class));
+                    .saveMonthly(eq(userId), eq(ym), any(SettlementTotals.class));
         }
 
         @Test
         @DisplayName("여러 사용자 월별 집계 성공")
         void execute_success_multiUsers() {
-
             List<Long> userIds = List.of(1L, 2L);
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(userIds);
 
-            WeeklySettlement w1 = HelperData.getWeeklySettlement();
+            given(settlementRepository.sumTotals(
+                    anyLong(),
+                    any(LocalDateTime.class),
+                    any(LocalDateTime.class)
+            )).willReturn(SettlementTotals.empty());
 
-            given(weeklySettlementRepository.findByWeeklySettlement(anyLong()))
-                    .willReturn(List.of(w1));
-
-            doNothing().when(settlementValidator).validateMonthly(anyList());
+            doNothing().when(settlementValidator).validateTotals(any());
 
             monthlySettlementTasklet.execute(contribution, context);
 
@@ -149,39 +159,14 @@ class MonthlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("validator.validateMonthly() 에서 BusinessException 발생")
+        @DisplayName("validator.validateTotals() 에서 BusinessException 발생")
         void execute_fail_validatorThrows() {
             Long userId = 10L;
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            given(weeklySettlementRepository.findByWeeklySettlement(userId))
-                    .willReturn(List.of());
-
-            doThrow(new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND))
-                    .when(settlementValidator).validateMonthly(anyList());
-
-            assertThatThrownBy(() ->
-                    monthlySettlementTasklet.execute(contribution, context)
-            ).isInstanceOf(BusinessException.class);
-        }
-
-        @Test
-        @DisplayName("aggregator.aggregate() 가 null → NPE 발생")
-        void execute_fail_aggregateNull() {
-            Long userId = 10L;
-
-            given(settlementRepository.findDistinctUserIds())
-                    .willReturn(List.of(userId));
-
-            WeeklySettlement ws = HelperData.getWeeklySettlement();
-            given(weeklySettlementRepository.findByWeeklySettlement(userId))
-                    .willReturn(List.of(ws));
-
-            doNothing().when(settlementValidator).validateMonthly(anyList());
-
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
                     .willReturn(null);
 
             assertThatThrownBy(() ->
@@ -190,57 +175,27 @@ class MonthlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("dailySettlementRepository 에서 예외 발생")
-        void execute_fail_repoError() {
-
-            given(settlementRepository.findDistinctUserIds())
-                    .willReturn(List.of(10L));
-
-            given(weeklySettlementRepository.findByWeeklySettlement(anyLong()))
-                    .willThrow(new RuntimeException("DB error"));
-
-            assertThatThrownBy(() ->
-                    monthlySettlementTasklet.execute(contribution, context)
-            ).isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("DB error");
-        }
-
-        @Test
-        @DisplayName("saveMonthly 중 예외 발생 시 그대로 전파된다")
+        @DisplayName("saveMonthly 중 예외 발생")
         void execute_fail_saveMonthlyError() {
             Long userId = 10L;
 
-            // 1) cutoff 설정
-            ReflectionTestUtils.setField(monthlySettlementTasklet, "cutoffString", "2025-11-25T00:00:00");
-
-            // 2) 사용자 목록
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            // 3) 주별 셋값 조회
-            WeeklySettlement w = HelperData.getWeeklySettlement();
-            given(weeklySettlementRepository.findByWeeklySettlement(userId))
-                    .willReturn(List.of(w));
+            SettlementTotals totals = SettlementTotals.empty();
 
-            doNothing().when(settlementValidator).validateMonthly(anyList());
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(totals);
 
-            // 4) aggregator → 반드시 YearMonth key 반환해야 saveMonthly까지 진입함
-            Map<YearMonth, SettlementTotals> map =
-                    Map.of(YearMonth.of(2025, 11), SettlementTotals.empty());
+            doNothing().when(settlementValidator).validateTotals(totals);
 
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn((Map) map);
+            doThrow(new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR))
+                    .when(settlementSaver)
+                    .saveMonthly(anyLong(), any(), any());
 
-            // 5) saveMonthly 에서 에러 발생하도록
-            doThrow(new RuntimeException("SAVE ERROR"))
-                    .when(settlementSaver).saveMonthly(anyLong(), any(), any());
-
-            // 6) 실행 & 검증
             assertThatThrownBy(() ->
                     monthlySettlementTasklet.execute(contribution, context)
-            )
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("SAVE ERROR");
+            ).isInstanceOf(BusinessException.class);
         }
     }
 }

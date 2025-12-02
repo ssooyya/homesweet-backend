@@ -4,6 +4,7 @@ import com.homesweet.homesweetback.common.exception.BusinessException;
 import com.homesweet.homesweetback.common.exception.ErrorCode;
 import com.homesweet.homesweetback.domain.grade.service.GradeService;
 import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
+import com.homesweet.homesweetback.domain.settlement.data.BatchHelperData;
 import com.homesweet.homesweetback.domain.settlement.data.HelperData;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
@@ -25,6 +26,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -86,67 +88,30 @@ class DailySettlementTaskletTest {
         @Test
         @DisplayName("정상적으로 일별 집계가 실행된다")
         void execute_success_singleUser() {
-            Long userId = 10L;
-            // 1. 사용자 목록 Mock
+            Long userId = 1L;
+            SettlementTotals totals = new SettlementTotals(
+                    BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.valueOf(8)
+            );
+
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            // 2. settlement 조회
-            Settlement s1 = HelperData.getSettlementWithDate(LocalDate.now());
-            given(settlementRepository.findBySettlementDateRange(
-                    eq(userId), any(LocalDateTime.class), any(LocalDateTime.class)
-            )).willReturn(List.of(s1));
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(totals);
 
-            doNothing().when(settlementValidator).validateDaily(anyList());
+            // validator OK
+            doNothing().when(settlementValidator).validateTotals(totals);
 
-            // 3. aggregator 결과 Mock
-            Map<LocalDate, SettlementTotals> aggregated = Map.of(
-                    LocalDate.of(2025, 11, 26),
-                    new SettlementTotals(
-                            s1.getSalesAmount(),
-                            s1.getFee(),
-                            s1.getVat(),
-                            s1.getRefundAmount(),
-                            s1.getSettlementAmount()
-                    )
-            );
+            doNothing().when(settlementSaver).saveDaily(anyLong(), any(), any());
+            doNothing().when(settlementStatusUpdater).markDailyCompleted(anyLong(), any(), any());
 
-            // when
-            RepeatStatus status = dailySettlementTasklet.execute(contribution, context);
+            RepeatStatus status =
+                    dailySettlementTasklet.execute(contribution, context);
 
-            // then
             assertThat(status).isEqualTo(RepeatStatus.FINISHED);
 
-            verify(settlementSaver, times(1))
-                    .saveDaily(eq(userId), any(LocalDate.class), any(SettlementTotals.class));
-
-            verify(settlementStatusUpdater, times(1))
-                    .markDailyCompleted(
-                            eq(userId),
-                            any(LocalDateTime.class),
-                            any(LocalDateTime.class)
-                    );
-        }
-
-        @Test
-        @DisplayName("여러 사용자가 있을 때 각각 집계가 실행된다")
-        void execute_success_multiUsers() {
-
-            List<Long> userIds = List.of(1L, 2L);
-            given(settlementRepository.findDistinctUserIds())
-                    .willReturn(userIds);
-
-            Settlement dummy = HelperData.getSettlementWithDate(LocalDate.now());
-
-            given(settlementRepository.findBySettlementDateRange(anyLong(), any(), any()))
-                    .willReturn(List.of(dummy));
-
-            doNothing().when(settlementValidator).validateDaily(anyList());
-            dailySettlementTasklet.execute(contribution, context);
-
-            // 사용자 2명 → saveDaily 2번 호출
-            verify(settlementSaver, times(2))
-                    .saveDaily(anyLong(), any(LocalDate.class), any(SettlementTotals.class));
+            verify(settlementSaver).saveDaily(eq(userId), any(), eq(totals));
+            verify(settlementStatusUpdater).markDailyCompleted(eq(userId), any(), any());
         }
     }
 
@@ -175,7 +140,7 @@ class DailySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("settlementValidator.validateDaily() 에서 BusinessException 발생 시 전파됨")
+        @DisplayName("settlementValidator.validateDaily() 에서 BusinessException 발생")
         void execute_fail_validatorThrows() {
 
             Long userId = 10L;
@@ -183,11 +148,8 @@ class DailySettlementTaskletTest {
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            given(settlementRepository.findBySettlementDateRange(anyLong(), any(), any()))
-                    .willReturn(List.of()); // 빈 리스트
-
             doThrow(new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND))
-                    .when(settlementValidator).validateDaily(anyList());
+                    .when(settlementValidator).validateTotals(any());
 
             assertThatThrownBy(() ->
                     dailySettlementTasklet.execute(contribution, context)
@@ -196,26 +158,27 @@ class DailySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("aggregate() 가 null 반환하면 NPE 발생")
-        void execute_fail_aggregateNull() {
+        @DisplayName("saveDaily() 내부 예외 발생 시 실패")
+        void execute_fail_saveDailyThrows() {
 
-            Long userId = 11L;
+            Long userId = 1L;
+            SettlementTotals totals = BatchHelperData.totals();
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            Settlement dummy = HelperData.getSettlementWithDate(LocalDate.now());
-            given(settlementRepository.findBySettlementDateRange(anyLong(), any(), any()))
-                    .willReturn(List.of(dummy));
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(totals);
 
-            doNothing().when(settlementValidator).validateDaily(anyList());
+            doNothing().when(settlementValidator).validateTotals(totals);
 
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn(null);
+            doThrow(new RuntimeException("save fail"))
+                    .when(settlementSaver).saveDaily(anyLong(), any(), any());
 
             assertThatThrownBy(() ->
                     dailySettlementTasklet.execute(contribution, context)
-            ).isInstanceOf(NullPointerException.class);
+            ).isInstanceOf(RuntimeException.class)
+                    .hasMessage("save fail");
         }
 
         @Test

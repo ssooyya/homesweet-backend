@@ -2,7 +2,6 @@ package com.homesweet.homesweetback.domain.settlement.repository.querydsl;
 
 import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.DailySettlementRepositoryImpl;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;

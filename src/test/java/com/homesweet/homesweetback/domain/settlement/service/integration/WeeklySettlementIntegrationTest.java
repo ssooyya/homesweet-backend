@@ -33,16 +33,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("test")
 @DisplayName("WeeklyService 통합 테스트")
 public class WeeklySettlementIntegrationTest {
-//    @DynamicPropertySource
-//    static void configureTestDatabase(DynamicPropertyRegistry registry) {
-//        registry.add("spring.datasource.url",
-//                () -> "jdbc:h2:mem:testdb;" +
-//                        "MODE=MySQL;" +
-//                        "DATABASE_TO_LOWER=TRUE;" +   // <- 이게 중요
-//                        "CASE_INSENSITIVE_IDENTIFIERS=TRUE"); // <- 이것도 중요
-//
-//        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-//    }
     @Autowired
     EntityManager em;
 

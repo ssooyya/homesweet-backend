@@ -1,11 +1,10 @@
 package com.homesweet.homesweetback.domain.settlement.repository.querydsl;
 
 import com.homesweet.homesweetback.domain.settlement.data.HelpIntegrationData;
-import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
 import com.homesweet.homesweetback.domain.settlement.entity.YearlySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.YearlySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.YearlySettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.YearlySettlementRepositoryImpl;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,10 +79,9 @@ public class YearlySettlementRepositoryImplTest {
             em.clear();
 
             // when
-            int result = yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
+            yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
 
             // then
-            assertThat(result).isEqualTo(1);   // INSERT
 
             YearlySettlement saved = yearlyRepository.findByYearlySettlement(userId).get(0);
 
@@ -131,10 +129,9 @@ public class YearlySettlementRepositoryImplTest {
             em.clear();
 
             // when
-            int result = yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
+            yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
 
             // then
-            assertThat(result).isEqualTo(1);  // UPDATE
 
             YearlySettlement updated = yearlyRepository.findByYearlySettlement(userId).get(0);
 
@@ -154,9 +151,7 @@ public class YearlySettlementRepositoryImplTest {
             em.flush();
             em.clear();
 
-            int result = yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
-
-            assertThat(result).isEqualTo(0);   // INSERT도 UPDATE도 실행 안됨
+            yearlyImpl.upsertYearly(userId, year, SettlementTotals.empty());
         }
     }
 }

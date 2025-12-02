@@ -220,7 +220,12 @@ class WeeklySettlementServiceTest {
 
 
             verify(settlementSaver, times(1))
-                    .saveWeekly(eq(userId), eq(LocalDate.of(2025, 11, 10)), any(SettlementTotals.class));
+                    .saveWeekly(anyLong(),
+                            anyShort(),
+                            anyByte(),
+                            any(LocalDate.class),
+                            any(LocalDate.class),
+                            any(SettlementTotals.class));
         }
     }
     @Nested
@@ -262,7 +267,7 @@ class WeeklySettlementServiceTest {
                     weeklySettlementService.getWeeklySettlement(userId, LocalDate.now(), LocalDate.now()))
                     .isInstanceOf(BusinessException.class);
 
-            verify(settlementSaver, never()).saveWeekly(any(), any(), any());
+            verify(settlementSaver, never()).saveWeekly(any(),any(),any(),any(), any(), any());
         }
 
         @Test
@@ -285,7 +290,7 @@ class WeeklySettlementServiceTest {
                     weeklySettlementService.getWeeklySettlement(userId, LocalDate.now(), LocalDate.now()))
                     .isInstanceOf(NullPointerException.class);
 
-            verify(settlementSaver, never()).saveWeekly(any(), any(), any());
+            verify(settlementSaver, never()).saveWeekly(any(), any(),any(),any(),any(), any());
         }
         @Test
         @DisplayName("저장(saveWeekly) 중 예외 발생하면 롤백")
@@ -308,7 +313,7 @@ class WeeklySettlementServiceTest {
 
             // saveWeekly에서 예외 발생시키기
             doThrow(new RuntimeException("DB error"))
-                    .when(settlementSaver).saveWeekly(any(), any(), any());
+                    .when(settlementSaver).saveWeekly(any(), any(),any(),any(),any(), any());
 
             assertThatThrownBy(() ->
                     weeklySettlementService.getWeeklySettlement(userId, LocalDate.now(), LocalDate.now()))

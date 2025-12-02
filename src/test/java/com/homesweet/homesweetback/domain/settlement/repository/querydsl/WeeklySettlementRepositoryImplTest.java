@@ -2,7 +2,6 @@ package com.homesweet.homesweetback.domain.settlement.repository.querydsl;
 
 import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.WeeklySettlementRepositoryImpl;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,10 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +46,11 @@ public class WeeklySettlementRepositoryImplTest {
     void upsertWeekly_insert_success() {
         // given
         Long userId = 11L;
-        LocalDate weekStart = LocalDate.of(2025, 1, 6); // 월요일 가정
+        LocalDate weekStart = LocalDate.of(2025, 1, 6);
+        LocalDate weekEnd = weekStart.plusDays(6);
+
+        short year = (short) weekStart.getYear();
+        byte month = (byte) weekStart.getMonthValue();
 
         SettlementTotals totals = new SettlementTotals(
                 BigDecimal.valueOf(100000),
@@ -61,10 +61,9 @@ public class WeeklySettlementRepositoryImplTest {
         );
 
         // when
-        int result = weeklySettlementRepositoryImpl.upsertWeekly(userId, weekStart, totals);
+        weeklySettlementRepositoryImpl.upsertWeekly(userId, year, month, weekStart,weekEnd, totals);
 
         // then
-        assertThat(result).isEqualTo(1); // INSERT 시 return = 1
 
         List<WeeklySettlement> list = weeklySettlementRepository.findByWeeklySettlement(userId);
         assertThat(list).hasSize(1);
@@ -72,7 +71,10 @@ public class WeeklySettlementRepositoryImplTest {
         WeeklySettlement saved = list.get(0);
 
         assertThat(saved.getUserId()).isEqualTo(userId);
+        assertThat(saved.getYear()).isEqualTo(year);
+        assertThat(saved.getMonth()).isEqualTo(month);
         assertThat(saved.getWeekStartDate()).isEqualTo(weekStart);
+        assertThat(saved.getWeekEndDate()).isEqualTo(weekEnd);
         assertThat(saved.getWeekEndDate()).isEqualTo(weekStart.plusDays(6));
         assertThat(saved.getMonth()).isEqualTo((byte) 1);
         assertThat(saved.getYear()).isEqualTo((short) 2025);
@@ -86,6 +88,10 @@ public class WeeklySettlementRepositoryImplTest {
         // given
         Long userId = 11L;
         LocalDate start = LocalDate.of(2025, 2, 3);
+        LocalDate end = start.plusDays(6);
+
+        short year = (short) start.getYear();
+        byte month = (byte) start.getMonthValue();
 
         // 1) 기존 row 저장
         WeeklySettlement weekly = WeeklySettlement.builder()
@@ -114,12 +120,11 @@ public class WeeklySettlementRepositoryImplTest {
         );
 
         // when
-        int updated = weeklySettlementRepositoryImpl.upsertWeekly(userId, start, newTotals);
+        weeklySettlementRepositoryImpl.upsertWeekly(userId, year, month, start, end, newTotals);
         em.flush();
         em.clear();
 
         // then
-        assertThat(updated).isEqualTo(1);
 
         List<WeeklySettlement> list = weeklySettlementRepository.findByWeeklySettlement(userId);
         assertThat(list).hasSize(1);
@@ -135,28 +140,35 @@ public class WeeklySettlementRepositoryImplTest {
         // ✔ 월/연도/기간 재계산 검증
         assertThat(after.getMonth()).isEqualTo((byte) 2);
         assertThat(after.getYear()).isEqualTo((short) 2025);
+        assertThat(after.getWeekStartDate()).isEqualTo(start);
+        assertThat(after.getWeekEndDate()).isEqualTo(end);
         assertThat(after.getWeekEndDate()).isEqualTo(start.plusDays(6));
     }
-    // -----------------------------
-    // FAILURE CASES
-    // -----------------------------
+
     @Nested
     @DisplayName("실패 케이스")
     class Fail{
 
         @Test
-        @DisplayName("[실패] totals = null → NPE")
+        @DisplayName("totals = null → NPE")
         void upsertWeekly_fail_totals_null() {
+            Long userId = 1L;
+            LocalDate start = LocalDate.of(2025, 1, 6);
+            LocalDate end = start.plusDays(6);
             assertThatThrownBy(() ->
-                    weeklySettlementRepositoryImpl.upsertWeekly(1L, LocalDate.now(), null)
+                    weeklySettlementRepositoryImpl.upsertWeekly(userId, (short) 2025, (byte) 1,
+                            start, end,
+                            null)
             ).isInstanceOf(NullPointerException.class);
         }
 
         @Test
-        @DisplayName("[실패] weekStartDate = null → NPE")
+        @DisplayName(" weekStartDate = null → NPE")
         void upsertWeekly_fail_weekStart_null() {
             assertThatThrownBy(() ->
-                    weeklySettlementRepositoryImpl.upsertWeekly(1L, null, SettlementTotals.empty())
+                    weeklySettlementRepositoryImpl.upsertWeekly(1L, (short) 2025, (byte) 1,
+                            null, LocalDate.now(),
+                            SettlementTotals.empty())
             ).isInstanceOf(NullPointerException.class);
         }
     }

@@ -15,6 +15,7 @@ import com.homesweet.homesweetback.domain.product.product.command.repository.jpa
 import com.homesweet.homesweetback.domain.settlement.data.BatchHelperData;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
+import com.homesweet.homesweetback.domain.settlement.util.TestAuditingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,8 +37,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.batch.job.enabled=true")
 @SpringBatchTest
 @ActiveProfiles("test")
-@Import(BatchConfig.class)
+@Import({BatchConfig.class,  TestAuditingConfig.class})
 @DisplayName("정산 생성 step 통합테스트")
+@TestPropertySource(properties = {
+        "logging.level.com.homesweet=DEBUG",
+        "logging.level.org.springframework.batch=DEBUG"
+})
 public class SettlementCreateStepIntegrationTest {
 
     @Autowired
@@ -79,57 +85,48 @@ public class SettlementCreateStepIntegrationTest {
     @Test
     @DisplayName("정산 생성 Step이 정상적으로 실행되어 Settlement가 저장된다")
     void settlementCreateStep_success() throws Exception {
-        Grade grade = gradeRepository.save(
-                BatchHelperData.createGrade()
-        );
 
-        // seller
+        // -------------------------------------
+        // 1) cutoff = 내일 00:00
+        // -------------------------------------
+        LocalDateTime now = LocalDateTime.now();
+        String cutoff = now.plusDays(1).toLocalDate().atStartOfDay().toString();
+
+        // orderedAt = cutoff 하루 전 12:00
+        LocalDateTime orderedAt = now.toLocalDate().minusDays(1).atStartOfDay().withHour(12);
+
+        System.out.println("cutoff = " + cutoff);
+        System.out.println("orderedAt = " + orderedAt);
+
+        // -------------------------------------
+        // 2) 테스트 데이터 생성
+        // -------------------------------------
+        Grade grade = gradeRepository.save(BatchHelperData.createGrade());
         User seller = userRepository.save(BatchHelperData.createSeller(grade));
 
-        // 카테고리
-        ProductCategoryEntity category = categoryRepository.save(
-                BatchHelperData.createCategory()
-        );
+        ProductCategoryEntity category = categoryRepository.save(BatchHelperData.createCategory());
+        ProductEntity product = productRepository.save(BatchHelperData.createProduct(seller, category));
+        SkuEntity sku = skuRepository.save(BatchHelperData.createSku(product));
 
-        // 상품
-        ProductEntity product = productRepository.save(
-                BatchHelperData.createProduct(seller, category)
-        );
-
-        // SKU
-        SkuEntity sku = skuRepository.save(
-                BatchHelperData.createSku(product)
-        );
-
-        // 주문 생성
-        Order order = BatchHelperData.createCompletedOrder(seller, LocalDateTime.now().minusHours(2));
-
-        // OrderItem 연결
+        Order order = BatchHelperData.createCompletedOrder(seller, orderedAt);
         order = BatchHelperData.setupFullOrderGraph(order, sku);
-
-        // Order 저장
-        order = orderRepository.save(order);
-        orderRepository.save(order);
         orderRepository.saveAndFlush(order);
-        System.out.println("order orderedAt = " + order.getOrderedAt());
-        System.out.println("saved order = " + order);
 
-
-        // 2) When — Step 실행
+        // -------------------------------------
+        // 3) settlementCreateStep 실행
+        // -------------------------------------
         JobParameters params = new JobParametersBuilder()
-                .addString("cutoff", order.getOrderedAt().minusDays(1).toString(), false) // cutoff 이후 주문이 대상
-                .addLong("time", System.currentTimeMillis(), true)
+                .addString("cutoff", cutoff)
+                .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
-//        jobLauncherTestUtils.launchJob(params);
 
         JobExecution execution = jobLauncherTestUtils.launchStep("settlementCreateStep", params);
 
-        // 3) Then — Step 성공 여부
         assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-        System.out.println("orderStatus in DB = " +
-                orderRepository.findById(order.getId()).get().getOrderStatus());
 
-        // Settlement가 저장되었는지 확인
+        // -------------------------------------
+        // 4) Settlement 생성 검증
+        // -------------------------------------
         List<Settlement> settlements = settlementRepository.findAll();
         assertThat(settlements).hasSize(1);
     }

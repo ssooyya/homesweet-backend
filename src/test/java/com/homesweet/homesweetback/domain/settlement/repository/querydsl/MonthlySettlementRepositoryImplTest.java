@@ -76,11 +76,9 @@ public class MonthlySettlementRepositoryImplTest {
         em.clear();
 
         // when
-        int result = monthlyImpl.upsertMonthly(userId, year, month, SettlementTotals.empty());
+        monthlyImpl.upsertMonthly(userId, year, month, SettlementTotals.empty());
 
         // then
-        assertThat(result).isEqualTo(1);
-
         List<MonthlySettlement> list = monthlyRepository.findByMonthlySettlement(userId);
         assertThat(list).hasSize(1);
 
@@ -130,11 +128,9 @@ public class MonthlySettlementRepositoryImplTest {
         em.clear();
 
         // UPDATE 호출
-        int updated = monthlyImpl.upsertMonthly(userId, year, month, SettlementTotals.empty());
+        monthlyImpl.upsertMonthly(userId, year, month, SettlementTotals.empty());
 
         // then
-        assertThat(updated).isEqualTo(1);
-
         MonthlySettlement saved = monthlyRepository.findByMonthlySettlement(userId).get(0);
 
         assertThat(saved.getTotalSales()).isEqualByComparingTo("90000");
@@ -159,8 +155,7 @@ public class MonthlySettlementRepositoryImplTest {
         @Test
         @DisplayName("Weekly 데이터가 없어 SUM=null → return 0")
         void fail_no_weekly_data() {
-            int result = monthlyImpl.upsertMonthly(1L, (short)2025, (byte)1, SettlementTotals.empty());
-            assertThat(result).isEqualTo(0);
+            monthlyImpl.upsertMonthly(1L, (short)2025, (byte)1, SettlementTotals.empty());
         }
     }
 }

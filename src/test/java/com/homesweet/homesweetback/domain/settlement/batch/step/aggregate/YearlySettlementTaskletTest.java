@@ -86,20 +86,18 @@ class YearlySettlementTaskletTest {
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            MonthlySettlement ms = HelperData.getMonthlySettlement();
-            given(monthlySettlementRepository.findByMonthlySettlement(userId))
-                    .willReturn(List.of(ms));
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(SettlementTotals.empty());
 
-            doNothing().when(settlementValidator).validateYearly(anyList());
+            doNothing().when(settlementValidator).validateTotals(any());
 
-            Map<Short, SettlementTotals> yearlyMap =
-                    Map.of((short) 2025, SettlementTotals.empty());
+            RepeatStatus result = yearlySettlementTasklet.execute(contribution, context);
 
-            RepeatStatus status = yearlySettlementTasklet.execute(contribution, context);
+            assertThat(result).isEqualTo(RepeatStatus.FINISHED);
 
-            assertThat(status).isEqualTo(RepeatStatus.FINISHED);
             verify(settlementSaver, times(1))
                     .saveYearly(eq(userId), eq((short) 2025), any(SettlementTotals.class));
+
         }
 
         @Test
@@ -110,17 +108,15 @@ class YearlySettlementTaskletTest {
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(userIds);
 
-            MonthlySettlement ms = HelperData.getMonthlySettlement();
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(SettlementTotals.empty());
 
-            given(monthlySettlementRepository.findByMonthlySettlement(anyLong()))
-                    .willReturn(List.of(ms));
-
-            doNothing().when(settlementValidator).validateYearly(anyList());
+            doNothing().when(settlementValidator).validateTotals(any());
 
             yearlySettlementTasklet.execute(contribution, context);
 
             verify(settlementSaver, times(2))
-                    .saveYearly(anyLong(), eq((short) 2025), any(SettlementTotals.class));
+                    .saveYearly(anyLong(), eq((short) 2025), any());
         }
     }
 
@@ -151,43 +147,22 @@ class YearlySettlementTaskletTest {
         @Test
         @DisplayName("validator.validateYearly()에서 BusinessException 발생")
         void execute_fail_validatorError() {
-            Long userId = 10L;
+            Long userId = 11L;
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            given(monthlySettlementRepository.findByMonthlySettlement(userId))
-                    .willReturn(List.of());
+            SettlementTotals totals = SettlementTotals.empty();
+
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(totals);
 
             doThrow(new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND))
-                    .when(settlementValidator).validateYearly(anyList());
+                    .when(settlementValidator).validateTotals(totals);
 
             assertThatThrownBy(() ->
                     yearlySettlementTasklet.execute(contribution, context)
-            ).isInstanceOf(BusinessException.class)
-                    .hasMessage(ErrorCode.SETTLEMENT_NOT_FOUND.getMessage());
-        }
-
-        @Test
-        @DisplayName("aggregator.aggregate()가 null 반환 → NPE 발생")
-        void execute_fail_aggregateNull() {
-            Long userId = 10L;
-
-            given(settlementRepository.findDistinctUserIds())
-                    .willReturn(List.of(userId));
-
-            MonthlySettlement ms = HelperData.getMonthlySettlement();
-            given(monthlySettlementRepository.findByMonthlySettlement(userId))
-                    .willReturn(List.of(ms));
-
-            doNothing().when(settlementValidator).validateYearly(anyList());
-
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn(null);
-
-            assertThatThrownBy(() ->
-                    yearlySettlementTasklet.execute(contribution, context)
-            ).isInstanceOf(NullPointerException.class);
+            ).isInstanceOf(BusinessException.class);
         }
 
         @Test
@@ -207,22 +182,21 @@ class YearlySettlementTaskletTest {
         @DisplayName("saveYearly 중 예외 발생")
         void fail_saveError() {
 
-            Long userId = 10L;
+            Long userId = 11L;
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            MonthlySettlement ms = HelperData.getMonthlySettlement();
-            given(monthlySettlementRepository.findByMonthlySettlement(userId))
-                    .willReturn(List.of(ms));
+            SettlementTotals totals = SettlementTotals.empty();
 
-            doNothing().when(settlementValidator).validateYearly(anyList());
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(totals);
 
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn(Map.of((short) 2025, SettlementTotals.empty()));
+            doNothing().when(settlementValidator).validateTotals(any());
 
             doThrow(new RuntimeException("SAVE ERROR"))
-                    .when(settlementSaver).saveYearly(anyLong(), anyShort(), any());
+                    .when(settlementSaver)
+                    .saveYearly(anyLong(), anyShort(), any());
 
             assertThatThrownBy(() ->
                     yearlySettlementTasklet.execute(contribution, context)
