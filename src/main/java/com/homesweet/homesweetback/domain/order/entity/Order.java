@@ -71,6 +71,10 @@ public class Order {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // 정산 여부 확인
+    @Column(name = "settlement_processed", nullable = false)
+    private boolean settlementProcessed = false;
+
     // 연관관계 편의 메서드 (양방향 관계 동기화)
     public void addOrderItem(OrderItem orderItem) {
         this.orderItems.add(orderItem);

@@ -46,8 +46,6 @@ class YearlySettlementTaskletTest {
     @Mock
     private SettlementValidator settlementValidator;
     @Mock
-    private MonthlySettlementRepository monthlySettlementRepository;
-    @Mock
     private SettlementSaver settlementSaver;
     @Mock
     private SettlementAggregator settlementAggregator;
@@ -80,7 +78,6 @@ class YearlySettlementTaskletTest {
         @Test
         @DisplayName("정상적으로 연별 집계 성공한다.")
         void success_singleUser() {
-
             Long userId = 10L;
 
             given(settlementRepository.findDistinctUserIds())

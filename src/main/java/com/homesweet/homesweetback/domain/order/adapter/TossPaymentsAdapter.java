@@ -16,6 +16,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException; // 서�
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -25,6 +26,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Profile("Prod")
 public class TossPaymentsAdapter {
+    // 토스 목킹
+    @Value("${payments.toss.mock:true}")
+    private boolean tossMock;
 
     // --- PaymentService에서 가져온 의존성 ---
     private final PaymentApiClient paymentApiClient;
@@ -46,6 +50,21 @@ public class TossPaymentsAdapter {
     public Map<String, Object> confirmPaymentToToss(PaymentConfirmRequest dto) {
 //        TODO: 부하테스트 할 때 목킹서버를 따로 만들지 않는 경우, 스레드에 시간초를
 //        try { Thread.sleep(2000); } catch (InterruptedException e) {}
+
+
+        // 1) mock 활성화 시 실제 Toss API 호출 절대 X
+        if (tossMock) {
+            log.info("[MOCK] Toss 결제 승인 Mock 응답 반환");
+            return Map.of(
+                    "status", "DONE",                          // PaymentProcessor.paymentStatus
+                    "method", "CARD",                           // PaymentProcessor.method
+                    "paymentKey", dto.paymentKey(),             // PaymentProcessor.pgTransactionId
+                    "paidAt", LocalDateTime.now().toString(),   // PaymentProcessor.paidAt
+                    "totalAmount", dto.amount(),
+                    "pgTransactionId", dto.paymentKey(),        // 선택: DB 저장시에도 필요할 수 있음
+                    "result", "MOCK_SUCCESS"
+            );
+        }
 
 
         HttpHeaders headers = createAuthHeaders(); // 1. 헤더 생성 (공통 로직 분리)

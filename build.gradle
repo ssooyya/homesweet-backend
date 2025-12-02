@@ -101,6 +101,7 @@ dependencies {
     // Batch
     implementation 'org.springframework.boot:spring-boot-starter-batch'
     implementation 'org.springframework.batch:spring-batch-core'
+    implementation 'org.apache.commons:commons-collections4:4.4'
 
 
     // ElasticSearch
