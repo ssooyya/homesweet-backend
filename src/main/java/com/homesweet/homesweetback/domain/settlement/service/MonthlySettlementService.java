@@ -14,6 +14,7 @@ import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +38,9 @@ public class MonthlySettlementService {
     private final SettlementValidator settlementValidator;
     private final SettlementAggregator settlementAggregator;
     private final SettlementSaver settlementSaver;
+    private final SettlementCacheService settlementCacheService;
+
+    // redis cache 적용
 
     // 월별 데이터 조회(페이지 처리)
     @Transactional(readOnly = true)
@@ -44,21 +48,25 @@ public class MonthlySettlementService {
         // 1. 월 구하기
         MonthlyDateRangeCalculator.MonthlyDateRange range = monthlyDateRangeCalculator.MonthlyDateRangeCalculate(startDate, endDate);
 
+        Page<MonthlySettlement> pageInfo =
+                monthlySettlementRepository.findByMonthlySettlementByRange(userId, range.fromYear(), range.fromMonth(), range.toYear(), range.toMonth(), pageable);
         // 2. 총 주문건수 계산
-        long totalCount = settlementRepository.countAllByOrderedAt(userId, range.from(), range.toExclusive());
+        long totalCount = pageInfo.getTotalElements();
+//        long totalCount = settlementRepository.countAllByOrderedAt(userId, range.from(), range.toExclusive());
 
         // 3. 월별 집계 조회
-        Page<MonthlySettlement> monthlySettlements = monthlySettlementRepository.findByMonthlySettlementByRange(userId,range.fromYear(), range.fromMonth(), range.toYear(), range.toMonth(), pageable);
+        List<MonthlySettlementResponse> monthlySettlements =
+                settlementCacheService.getMonthlyContentCache(userId, startDate, endDate, pageable);
 
         // 4. 데이터가 없으면 빈 페이지
         if (monthlySettlements.isEmpty()) {
             return emptyResponse.createEmptyMonthly(range.fromYM(), pageable);
         }
         // 5. 응답 반환
-        List<MonthlySettlementResponse> monthlySettlement = settlementMapper.toMonthlyResponses(monthlySettlements.getContent(), totalCount);
+//        List<MonthlySettlementResponse> monthlySettlement = settlementMapper.toMonthlyResponses(monthlySettlements.getContent(), totalCount);
 
         // 6. page 반환
-        return new PageImpl<>(monthlySettlement, pageable, totalCount);
+        return new PageImpl<>(monthlySettlements, pageable, totalCount);
     }
 
     // 월별 집계

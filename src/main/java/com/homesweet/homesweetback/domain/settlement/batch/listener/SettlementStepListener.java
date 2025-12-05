@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class SettlementStepListener implements StepExecutionListener {
     private Long startTime;
-
     // 실행 전
     @Override
     public void beforeStep(StepExecution stepExecution) {

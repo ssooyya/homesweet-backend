@@ -27,6 +27,7 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @Builder
 @AllArgsConstructor
+@BatchSize(size = 1000)
 public class SkuEntity {
 
     @Id

@@ -25,13 +25,13 @@ public class YearlySettlementRepositoryImpl implements CustomYearlySettlementRep
 
     @Override
     @Transactional
-    public void upsertYearly(Long userId, Short year, SettlementTotals totals) {
+    public void upsertYearly(Long userId, Short yearValue, SettlementTotals totals) {
         Long count = jpaQueryFactory
                 .select(m.count())
                 .from(m)
                 .where(
                         m.userId.eq(userId),
-                        m.year.eq(year)
+                        m.year.eq(yearValue)
                 )
                 .fetchOne();
 
@@ -51,7 +51,7 @@ public class YearlySettlementRepositoryImpl implements CustomYearlySettlementRep
                 .from(m)
                 .where(
                         m.userId.eq(userId),
-                        m.year.eq(year)
+                        m.year.eq(yearValue)
                 )
                 .fetchOne();
 
@@ -75,7 +75,7 @@ public class YearlySettlementRepositoryImpl implements CustomYearlySettlementRep
                 .selectFrom(y)
                 .where(
                         y.userId.eq(userId),
-                        y.year.eq(year)
+                        y.year.eq(yearValue)
                 )
                 .fetchOne();
 
@@ -83,7 +83,7 @@ public class YearlySettlementRepositoryImpl implements CustomYearlySettlementRep
         if (exists == null) {
             YearlySettlement newRow = YearlySettlement.builder()
                     .userId(userId)
-                    .year(year)
+                    .year(yearValue)
                     .totalSales(totalSales)
                     .totalFee(totalFee)
                     .totalVat(totalVat)

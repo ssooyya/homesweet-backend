@@ -40,7 +40,7 @@ public class Order {
 
     // (1:N) 한 주문은 여러 개의 SKU(상품 옵션)을 포함 */
     @Builder.Default
-    @BatchSize(size = 100)
+    @BatchSize(size = 1000)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 

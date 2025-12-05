@@ -57,4 +57,27 @@ public interface MonthlySettlementRepository extends JpaRepository<MonthlySettle
                 @Param("totalRefund") BigDecimal totalRefund,
                 @Param("totalSettlement") BigDecimal totalSettlement
         );
+
+        //
+        @Query("""
+        SELECT COUNT(m)
+        FROM MonthlySettlement m
+          WHERE m.userId = :userId
+          AND (
+            m.year > :startYear
+            OR (m.year = :startYear AND m.month >= :startMonth)
+          )
+          AND (
+            m.year < :endYear
+            OR (m.year = :endYear AND m.month <= :endMonth)
+          )
+        """)
+        long countByRange(
+                @Param("userId") Long userId,
+                @Param("startYear") Short startYear,
+                @Param("startMonth") Byte startMonth,
+                @Param("endYear") Short endYear,
+                @Param("endMonth") Byte endMonth
+        );
+
 }

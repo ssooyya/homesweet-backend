@@ -1,8 +1,11 @@
 package com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl;
 
+import com.homesweet.homesweetback.domain.order.entity.Order;
+import com.homesweet.homesweetback.domain.order.entity.OrderStatus;
 import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.querydsl.CustomDailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
+import com.querydsl.core.QueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -11,12 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Profile("!test")
 @Repository
 @RequiredArgsConstructor
 public class DailySettlementRepositoryImpl implements CustomDailySettlementRepository {
     private final EntityManager em;
+    private final QueryFactory queryFactory;
 
     @Override
     @Transactional
@@ -44,4 +49,6 @@ public class DailySettlementRepositoryImpl implements CustomDailySettlementRepos
                 .setParameter("totalSettlement", totals.getTotalSettlement())
                 .executeUpdate();
     }
+
+
 }

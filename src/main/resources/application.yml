@@ -22,11 +22,21 @@ spring:
 #      enabled: true
     jdbc:
       initialize-schema: always
+      isolation-level-for-create: SERIALIZABLE   # Job 동시 실행 방지
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 1000
+          order_inserts: true
+          order_updates: true
+        generate_statistics: true
+        show_sql: true
 
   datasource:
     hikari:
-      maximum-pool-size: 40
-      minimum-idle: 20
+      maximum-pool-size: 200
+      minimum-idle: 5
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000

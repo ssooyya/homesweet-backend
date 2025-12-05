@@ -112,7 +112,7 @@ public class HelperData {
 
     public static Settlement getSettlement() {
         Settlement settlement = Settlement.builder()
-                .settlementId(1L)
+                .settlementId(UUID.randomUUID())
                 .salesAmount(BigDecimal.valueOf(150000))
                 .fee(BigDecimal.valueOf(7500))
                 .vat(BigDecimal.valueOf(15000))
@@ -167,7 +167,7 @@ public class HelperData {
     // 정산 날짜
     public static Settlement getSettlementWithDate(LocalDate date) {
         return Settlement.builder()
-                .settlementId(1L)
+                .settlementId(UUID.randomUUID())
                 .salesAmount(BigDecimal.valueOf(150000))
                 .fee(BigDecimal.valueOf(7500))
                 .vat(BigDecimal.valueOf(15000))
@@ -264,9 +264,9 @@ public class HelperData {
     }
 
     // 정산 생성
-    public static Settlement createSettlement(Long id, Order order) {
+    public static Settlement createSettlement(Long uuid, Order order) {
         return Settlement.builder()
-                .settlementId(id)
+                .settlementId(UUID.randomUUID())
                 .userId(11L)
                 .salesAmount(BigDecimal.valueOf(150000))
                 .fee(BigDecimal.valueOf(7500))
@@ -274,7 +274,7 @@ public class HelperData {
                 .refundAmount(BigDecimal.ZERO)
                 .settlementAmount(BigDecimal.valueOf(127500))
                 .settlementDate(order.getOrderedAt())
-                .order(order)
+                .orderId(1L)
                 .build();
     }
 }

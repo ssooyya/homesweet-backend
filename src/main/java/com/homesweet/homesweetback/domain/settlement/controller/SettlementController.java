@@ -1,6 +1,7 @@
 package com.homesweet.homesweetback.domain.settlement.controller;
 
 import com.homesweet.homesweetback.domain.order.dto.response.OrderReadyResponse;
+import com.homesweet.homesweetback.domain.settlement.batch.SettlementBatchAsyncRunner;
 import com.homesweet.homesweetback.domain.settlement.dto.response.*;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.service.*;
@@ -30,6 +31,7 @@ public class SettlementController {
     private final SettlementService settlementService;
     private final JobLauncher jobLauncher;
     private final Job settlementJob;
+    private final SettlementBatchAsyncRunner settlementBatchAsyncRunner;
 
     // 1. 전체 주문건별 +  정산 상태별 조회
     @GetMapping("/all/{userId}")
@@ -62,7 +64,7 @@ public class SettlementController {
 
     // 4. 월별 정산내역 조회
     @GetMapping("/monthly/{userId}")
-    public ResponseEntity<Page<MonthlySettlementResponse>> getMonthlySummary(@PathVariable Long userId, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate , Pageable pageable) {
+    public ResponseEntity<Page<MonthlySettlementResponse>> getMonthlySummary(@PathVariable Long userId, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, Pageable pageable) {
         Page<MonthlySettlementResponse> res = monthlySettlementService.getMonthlySummary(userId, startDate, endDate, pageable);
         return ResponseEntity.ok(res);
     }
@@ -74,7 +76,7 @@ public class SettlementController {
         return ResponseEntity.ok(yearSummary);
     }
 
-//    @PostMapping("/daily/{userId}/generate")
+    //    @PostMapping("/daily/{userId}/generate")
 //    public ResponseEntity<Void> getDailySettlement(@PathVariable Long userId, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDateTime startDate, @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDateTime endDate) {
 //        dailySettlementService.getSettlement(userId, startDate, endDate);
 //        return ResponseEntity.ok().build();
@@ -99,23 +101,11 @@ public class SettlementController {
 //    }
     // 부하테스트용
     @PostMapping("/batch/run")
-    public ResponseEntity<String> runJob(){
+    public ResponseEntity<String> runJob() {
         LocalDateTime cutoff = LocalDateTime.now(); // 오늘 전체
 
-        try {
-            JobParameters params = new JobParametersBuilder()
-                    .addString("cutoff", cutoff.toString())
-                    .addLong("timestamp", System.currentTimeMillis()) // 매번 새로운 JobInstance
-                    .toJobParameters();
+        settlementBatchAsyncRunner.runAsync(cutoff);
 
-            JobExecution jobExecution = jobLauncher.run(settlementJob, params);
-
-            return ResponseEntity.ok("SETTLEMENT BATCH STARTED (executionId=" + jobExecution.getId() + ")");
-
-        } catch (JobExecutionAlreadyRunningException e) {
-            return ResponseEntity.status(409).body("SETTLEMENT BATCH ALREADY RUNNING");
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("SETTLEMENT BATCH FAILED: " + e.getMessage());
-        }
+        return ResponseEntity.ok("SETTLEMENT BATCH STARTED");
     }
 }

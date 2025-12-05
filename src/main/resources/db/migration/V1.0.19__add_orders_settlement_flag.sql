@@ -17,3 +17,21 @@ ADD INDEX idx_settlement_date (settlement_date);
 ALTER TABLE settlement
 ADD INDEX idx_settlement_user_date (user_id, settlement_date);
 
+-- settlement 내의 order_id 연관관계 삭제
+ALTER TABLE settlement DROP FOREIGN KEY fk_settlement_order;
+ALTER TABLE settlement DROP INDEX UK_SETTLEMENT_ORDER;
+-- 만약 unique 유지하려면 다시 생성
+ALTER TABLE settlement ADD UNIQUE INDEX UK_SETTLEMENT_ORDER (order_id);
+
+ALTER TABLE settlement
+MODIFY COLUMN order_id BIGINT NOT NULL;
+
+ALTER TABLE settlement
+    CHANGE COLUMN settlement_id settlement_id BINARY(16) NOT NULL;
+
+ALTER TABLE settlement
+    DROP PRIMARY KEY;
+
+ALTER TABLE settlement
+    ADD PRIMARY KEY (settlement_id);
+

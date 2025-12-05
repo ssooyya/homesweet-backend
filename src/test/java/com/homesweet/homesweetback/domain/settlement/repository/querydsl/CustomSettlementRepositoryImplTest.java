@@ -1,7 +1,7 @@
 package com.homesweet.homesweetback.domain.settlement.repository.querydsl;
 
 import com.homesweet.homesweetback.domain.settlement.entity.QSettlement;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.testImpl.CustomSettlementRepositoryImpl;
+import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.CustomSettlementRepositoryImpl;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.jpa.impl.JPAUpdateClause;
 import org.junit.jupiter.api.Test;

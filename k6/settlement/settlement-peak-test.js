@@ -1,11 +1,8 @@
 import http from "k6/http";      // 중요: k6/http 말고 mock.js 사용
-// import "./toss-mock.js";           // Toss API mock 자동 등록
 import { check, sleep } from "k6";
 
-// 토스 api mock 처리
-
 // JWT token
-const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDY0ODgwMywiZXhwIjoxNzY0NjY2ODAzfQ.DBVN1y_zaKgiOjZzqsElDb8mjKdzHvL5POti1RunxYcYque4PapQ3ZSsdA0TnJHYokAlTuWFVdaNzd1R1-wR4g";
+const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDgzNDk2MCwiZXhwIjoxNzY0ODUyOTYwfQ.BVdW2zP2r_qzihEp21wlPSiqsVjOlpJGmZzA4NB-gmwktTbP3NMwSoYjcesyhuM_ild2BG5BG8jV5LXhh-QEpw";
 
 export const options = {
     discardResponseBodies: false,
@@ -13,25 +10,14 @@ export const options = {
         // 1) 주문 유입 시뮬레이션 (steady load)
         order_inflow: {
             executor: "constant-arrival-rate",
-            rate: 500,              // 초당 0.1건 → 하루 약 1만건 -> 5분동안 9000건
+            rate: 833,              // 분당 5만건
             timeUnit: "1s",
             duration: "10m",         // 10분 동안 테스트
-            preAllocatedVUs: 50,
-            maxVUs: 1000,
+            preAllocatedVUs: 2000,
+            maxVUs: 10000,
             exec: "orderFlow",
         },
 
-        // 2) 10초 단위 배치 실행 테스트
-        // batch_runner: {
-        //     executor: "per-vu-iterations",
-        //     rate: 1,               // 10초에 1번 실행
-        //     startTime: "5s",
-        //     timeUnit: "10s",
-        //     duration: "10m",
-        //     preAllocatedVUs: 1,
-        //     maxVUs: 1,
-        //     exec: "runBatch",
-        // },
         batch_runner: {
             executor: "per-vu-iterations",
             vus: 1,
@@ -157,7 +143,7 @@ export function orderFlow() {
         console.error("Order creation failed — skipping payment");
         return;
     }
-    sleep(0.4);
+    // sleep(0.4);
     confirmPayment(order);
-    sleep(1);
+    // sleep(1);
 }

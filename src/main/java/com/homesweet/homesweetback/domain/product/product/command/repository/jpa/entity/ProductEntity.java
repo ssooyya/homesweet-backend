@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -32,6 +33,7 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 @AllArgsConstructor
 @Builder(toBuilder = true)
+@BatchSize(size = 1000)
 public class ProductEntity {
 
     @Id

@@ -16,6 +16,7 @@ import com.homesweet.homesweetback.domain.settlement.validation.SettlementValida
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,8 @@ public class DailySettlementService {
     private final SettlementSaver settlementSaver;
     private final SettlementCalculator settlementCalculator;
 
+    private final SettlementCacheService settlementCacheService;
+
     @Autowired(required = false)
     private Clock clock = Clock.systemDefaultZone();
 
@@ -55,7 +58,9 @@ public class DailySettlementService {
 
         long t1 = System.currentTimeMillis();
         // 1. 페이지로 정산일시 기준 정산 목록 조회(실제 리스트)
-        Page<DailySettlement> dailySettlementPage = findDailySettlements(userId, pageable, start, end);
+        List<DailySettlementResponse> dailySettlementPage = settlementCacheService.getDailyContentCache(userId, startDate, endDate, pageable);
+        Page<DailySettlement> pageinfo = findDailySettlements(userId,pageable, start, end);
+        long totalCount = pageinfo.getTotalElements();
         long t2 = System.currentTimeMillis();
         // 2. 기간 전체의 총 주문 건수/총 정산 완료 건수/정산 완료율 계산 -> 미리 계산해두기
         SettlementCalculator.SettlementStats stats = settlementCalculator.calculateStats(userId, startDate, endDate);
@@ -64,13 +69,13 @@ public class DailySettlementService {
         if (dailySettlementPage.isEmpty()) {
             return emptyResponse.createEmptyDaily(startDate, pageable);
         }
-        // 4. 페이지의 실제 리스트를 response에 매핑
-        List<DailySettlementResponse> dailySettlementResponses = settlementMapper.toDailySettlementResponseList(
-                dailySettlementPage.getContent(),stats);
+//        // 4. 페이지의 실제 리스트를 response에 매핑
+//        List<DailySettlementResponse> dailySettlementResponses = settlementMapper.toDailySettlementResponseList(
+//                dailySettlementPage,pageable,stats);
         long t4 = System.currentTimeMillis();
         log.info("[PERF] DB={}ms, CALC={}ms, DTO={}ms",
                 (t2 - t1), (t3 - t2), (t4 - t3));
-        return new PageImpl<>(dailySettlementResponses, pageable, stats.totalCount());   // 전체 페이지수
+        return new PageImpl<>(dailySettlementPage, pageable, totalCount);   // 전체 페이지수
     }
     public Page<DailySettlement> findDailySettlements(Long userId, Pageable pageable, LocalDateTime start, LocalDateTime end) {
         Page<DailySettlement> dailySettlements = dailySettlementRepository.findByDailySettlementByRange(userId, start, end, pageable);

@@ -183,6 +183,7 @@ public class HelpIntegrationData {
 
         Settlement saved = settlementRepository.save(
                 Settlement.builder()
+                        .orderId(1L)
                         .order(order)
                         .userId(seller.getId()) // 👈 [수정 1] User 정보 명시적 주입!
                         .settlementStatus("COMPLETED")

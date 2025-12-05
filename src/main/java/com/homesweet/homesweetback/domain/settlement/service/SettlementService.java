@@ -50,7 +50,7 @@ public class SettlementService {
 
         // 5. 계산된 금액 저장
         Settlement settlement = Settlement.builder()
-                .order(order)
+                .orderId(order.getId())
                 .salesAmount(result.totalAmount())
                 .fee(result.fee())
                 .vat(result.vat())

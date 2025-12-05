@@ -4,6 +4,7 @@ import com.homesweet.homesweetback.domain.product.product.command.repository.jpa
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Table(name = "order_items")
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 @AllArgsConstructor
+@BatchSize(size = 1000)
 public class OrderItem {
 
     @Id
@@ -27,6 +29,7 @@ public class OrderItem {
     // (N:1) 하나의 주문 상품은 하나의 SKU(옵션)를 가리킨다
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sku_id", nullable = false)
+//    @BatchSize(size = 1000)
     private SkuEntity sku;
 
     // 주문 수량

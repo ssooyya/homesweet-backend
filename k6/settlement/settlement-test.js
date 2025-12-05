@@ -1,6 +1,7 @@
 import http from "k6/http";
 import { sleep, check } from "k6";
 
+// 조회테스트
 export const options = {
     stages: [
         { duration: "30s", target: 0 },    // 2단계: 100명

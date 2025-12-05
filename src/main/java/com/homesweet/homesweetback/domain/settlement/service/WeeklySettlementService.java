@@ -35,6 +35,7 @@ public class WeeklySettlementService {
     private final SettlementValidator settlementValidator;
     private final SettlementAggregator settlementAggregator;
     private final SettlementSaver settlementSaver;
+    private final SettlementCacheService settlementCacheService;
 
     // 주별 데이터 조회(페이지 처리)
     @Transactional(readOnly = true)
@@ -44,8 +45,9 @@ public class WeeklySettlementService {
                 WeeklyDateRangeCalculator.getWeeklyDateRange(startDate, endDate);
 
         // 2. 페이지로 정산일시 기준 월별 정산목록 조회
-        Page<WeeklySettlement> weeklySettlementsPage = findWeeklySettlements(userId, pageable, range.firstWeekStart(), range.lastWeekStartEx());
-
+        List<WeeklySettlementResponse> weeklySettlementsPage = settlementCacheService.getWeeklyContentCache(userId, startDate, endDate, pageable);
+        Page<WeeklySettlement> pageinfo = findWeeklySettlements(userId, pageable, range.firstWeekStart(), range.lastWeekStartEx());
+        long totalCount = pageinfo.getTotalElements();
         // 3. 기간 전체의 총 주문 건수/총 정산 완료 건수/정산 완료율
         SettlementCalculator.SettlementStats stats = settlementCalculator.calculateStats(userId, startDate, endDate);
 
@@ -54,10 +56,10 @@ public class WeeklySettlementService {
             return emptyResponse.createEmptyWeekly(range, pageable);
         }
         // 5. 응답 반환
-        List<WeeklySettlementResponse> weeklySettlementResponses = settlementMapper.toWeeklySettlementResponse(
-                weeklySettlementsPage.getContent(), stats, range.week()
-        );
-        return new PageImpl<>(weeklySettlementResponses, pageable, stats.totalCount());
+//        List<WeeklySettlementResponse> weeklySettlementResponses = settlementMapper.toWeeklySettlementResponse(
+//                weeklySettlementsPage.getContent(), stats, range.week()
+//        );
+        return new PageImpl<>(weeklySettlementsPage, pageable, totalCount);
     }
 
     private Page<WeeklySettlement> findWeeklySettlements(Long userId, Pageable pageable, LocalDate firstWeekStart, LocalDate lastWeekStartEx) {

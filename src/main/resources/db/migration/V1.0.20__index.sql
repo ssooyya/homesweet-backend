@@ -1,0 +1,14 @@
+-- 불필요한 인덱스 제거
+-- ALTER TABLE orders
+--     DROP INDEX idx_orders_user_status,
+--     DROP INDEX idx_orders_ordered_at,
+--     DROP INDEX IDX_ORDERS_STATUS_ORDERED_AT,
+--     DROP INDEX idx_orders_settlement_processed,
+--     DROP INDEX idx_order_settlement_query;
+--
+-- -- 인덱스 추가
+-- CREATE INDEX idx_settlement_cursor
+-- ON orders (settlement_processed, order_status, ordered_at, order_id);
+--
+-- CREATE INDEX idx_settlement_user_date
+--     ON settlement (user_id, settlement_date);
