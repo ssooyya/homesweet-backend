@@ -126,7 +126,6 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>{
     AND o.orderedAt >= :startDate
     AND o.orderedAt < :endDate
 """)
-    @Cacheable(value = "stats", key = "#userId + ':' + #startDate.toString() + ':' + #endDate.toString()")
     SettlementStatsDto findStats(Long userId, LocalDateTime startDate, LocalDateTime endDate);
 
     Optional<Settlement> findByOrderId(@Param("orderId") Long orderId);
