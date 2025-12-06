@@ -7,9 +7,7 @@ import com.homesweet.homesweetback.domain.order.entity.OrderStatus;
 import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementResponse;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.CustomSettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.CustomSettlementRepositoryImpl;
-import com.homesweet.homesweetback.domain.settlement.util.SettlementStatsProjection;
+import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementStatsDto;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -129,7 +127,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>{
     AND o.orderedAt < :endDate
 """)
     @Cacheable(value = "stats", key = "#userId + ':' + #startDate.toString() + ':' + #endDate.toString()")
-    SettlementStatsProjection findStats(Long userId, LocalDateTime startDate, LocalDateTime endDate);
+    SettlementStatsDto findStats(Long userId, LocalDateTime startDate, LocalDateTime endDate);
 
     Optional<Settlement> findByOrderId(@Param("orderId") Long orderId);
 
