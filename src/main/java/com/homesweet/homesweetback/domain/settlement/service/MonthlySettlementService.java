@@ -1,20 +1,13 @@
 package com.homesweet.homesweetback.domain.settlement.service;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.dto.response.MonthlySettlementResponse;
 import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
 import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
-import com.homesweet.homesweetback.domain.settlement.mapper.SettlementMapper;
 import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.dto.response.EmptyResponse;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.MonthlyDateRangeCalculator;
-import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
-import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
-import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -31,16 +24,9 @@ import java.util.Map;
 public class MonthlySettlementService {
     private final MonthlySettlementRepository monthlySettlementRepository;
     private final WeeklySettlementRepository weeklySettlementRepository;
-    private final SettlementRepository settlementRepository;
     private final MonthlyDateRangeCalculator monthlyDateRangeCalculator;
     private final EmptyResponse emptyResponse;
-    private final SettlementMapper settlementMapper;
-    private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
-    private final SettlementSaver settlementSaver;
     private final SettlementCacheService settlementCacheService;
-
-    // redis cache 적용
 
     // 월별 데이터 조회(페이지 처리)
     @Transactional(readOnly = true)
@@ -69,30 +55,6 @@ public class MonthlySettlementService {
         return new PageImpl<>(monthlySettlements, pageable, totalCount);
     }
 
-    // 월별 집계
-    public void getMonthlySettlement(Long userId) {
-        // 1. 주별 집계내역 조회
-        List<WeeklySettlement> settlements = findWeeklySettlements(userId);
-        // 2. 검증
-        settlementValidator.validateMonthly(settlements);
-        // 3. 공통 월별 집계 처리
-        Map<YearMonth, SettlementTotals> monthlyTotalsMap =
-                settlementAggregator.aggregate(
-                        settlements,
-                        w -> YearMonth.of(w.getYear(), w.getMonth()),   // 월별 그룹핑 Key
-                        w -> new SettlementTotals(
-                                w.getTotalSales(),
-                                w.getTotalFee(),
-                                w.getTotalVat(),
-                                w.getTotalRefund(),
-                                w.getTotalSettlement()
-                        )
-                );
-        // 4. upsert
-        monthlyTotalsMap.forEach((yearMonth, totals) ->
-                settlementSaver.saveMonthly(userId, yearMonth, totals)
-        );
-    }
     private List<WeeklySettlement> findWeeklySettlements(Long userId) {
         return weeklySettlementRepository.findByWeeklySettlement(userId);
     }

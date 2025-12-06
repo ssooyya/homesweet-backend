@@ -1,10 +1,5 @@
 package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
-import com.homesweet.homesweetback.common.exception.BusinessException;
-import com.homesweet.homesweetback.common.exception.ErrorCode;
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
-import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.SettlementStatusUpdater;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
@@ -24,7 +19,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 
 @Slf4j
@@ -37,10 +31,8 @@ import java.util.Map;
 public class DailySettlementTasklet implements Tasklet {
     private final SettlementRepository settlementRepository;
     private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
     private final SettlementSaver settlementSaver;
     private final SettlementStatusUpdater settlementStatusUpdater;
-    private final DailySettlementRepository dailySettlementRepository;
 //    private final Clock clock;
 
     @Value("#{jobParameters['cutoff']}")

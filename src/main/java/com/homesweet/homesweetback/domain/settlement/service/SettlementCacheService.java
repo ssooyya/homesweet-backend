@@ -1,6 +1,5 @@
 package com.homesweet.homesweetback.domain.settlement.service;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.dto.response.*;
 import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
 import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
@@ -8,13 +7,10 @@ import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.entity.YearlySettlement;
 import com.homesweet.homesweetback.domain.settlement.mapper.SettlementMapper;
 import com.homesweet.homesweetback.domain.settlement.repository.*;
-import com.homesweet.homesweetback.domain.settlement.util.SettlementStatusUpdater;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.MonthlyDateRangeCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.WeeklyDateRangeCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.YearlyDateRangeCalculator;
-import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
-import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -29,7 +25,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SettlementCacheService {
     private final DailySettlementRepository dailySettlementRepository;
-    private final SettlementRepository settlementRepository;
     private final SettlementMapper settlementMapper;
     private final SettlementCalculator settlementCalculator;
     private final YearlySettlementRepository yearlySettlementRepository;

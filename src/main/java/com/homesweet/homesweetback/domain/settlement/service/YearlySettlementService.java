@@ -1,20 +1,11 @@
 package com.homesweet.homesweetback.domain.settlement.service;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.dto.response.YearlySettlementResponse;
-import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
 import com.homesweet.homesweetback.domain.settlement.entity.YearlySettlement;
-import com.homesweet.homesweetback.domain.settlement.mapper.SettlementMapper;
-import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.YearlySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.dto.response.EmptyResponse;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.YearlyDateRangeCalculator;
-import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
-import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
-import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -23,18 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class YearlySettlementService {
     private final YearlySettlementRepository yearlySettlementRepository;
-    private final MonthlySettlementRepository monthlySettlementRepository;
     private final YearlyDateRangeCalculator yearlyDateRangeCalculator;
     private final EmptyResponse emptyResponse;
-    private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
-    private final SettlementSaver settlementSaver;
     private final SettlementCacheService settlementCacheService;
 
     // redis cache 적용
@@ -77,27 +63,5 @@ public class YearlySettlementService {
         return yearlySettlementRepository.findByYearlySettlementByRange(userId, fromYear, toYearExclusive, pageable);
     }
     // 연별 집계
-    public void getYearlySettlement(Long userId) {
-        Short prevYear = null;
-        List<MonthlySettlement> settlements = monthlySettlementRepository.findByMonthlySettlement(userId);
-        // 2. 검증
-        settlementValidator.validateYearly(settlements);
-        // 3. 공통 연별 집계 처리
-        Map<Short, SettlementTotals> yearlyTotalsMap =
-                settlementAggregator.aggregate(
-                        settlements,
-                        m -> m.getYear(),   // grouping key
-                        m -> new SettlementTotals(
-                                m.getTotalSales(),
-                                m.getTotalFee(),
-                                m.getTotalVat(),
-                                m.getTotalRefund(),
-                                m.getTotalSettlement()
-                        )
-                );
-        // 4. upsert
-        yearlyTotalsMap.forEach((year, totals) ->
-                settlementSaver.saveYearly(userId, year, totals)
-        );
-    }
+
 }

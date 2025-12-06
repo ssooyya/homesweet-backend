@@ -62,10 +62,12 @@ public class SettlementCalculator {
     public SettlementStats calculateStats(Long userId, LocalDate startDate, LocalDate endDate) {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
         SettlementStatsProjection stats = settlementRepository.findStats(userId, start, end);
 
-        long totalCount = stats.getTotalCount();  // 총 주문건수
-        long completedCount = stats.getCompletedCount();
+        long totalCount = stats.getTotalCount() == null ? 0L : stats.getTotalCount();
+        long completedCount = stats.getCompletedCount() == null ? 0L : stats.getCompletedCount();
+
         double completedRate = totalCount == 0 ? 0.0 : Math.round(((double) completedCount * 100.0 / totalCount) * 10) / 10.0;  // 정산 완료율
         return new SettlementStats(totalCount, completedCount, completedRate);
     }

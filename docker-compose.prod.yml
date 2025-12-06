@@ -8,38 +8,9 @@ services:
       - "8080:8080"
     env_file:
       - .env
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - REDIS_HOST=redis                 # Redis Host 연결
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
     networks:
       - homesweet-network
     restart: always
-    mem_limit: 1024m
-
-  redis:
-    image: redis:7.2
-    container_name: homesweet-redis
-    restart: always
-    ports:
-      - "6379:6379"
-    command: >
-      redis-server
-      --appendonly yes
-    volumes:
-      - redisdata:/data
-    networks:
-      - homesweet-network
-
-  redis_insight:
-    image: redis/redisinsight:latest
-    container_name: redis-insight
-    restart: always
-    ports:
-      - "5540:5540"
-    networks:
-      - homesweet-network
 
   node_exporter:
     image: prom/node-exporter:latest
@@ -54,62 +25,12 @@ services:
     restart: always
     command:
       - "--mysqld.username=${DATABASE_USERNAME}:${DATABASE_PASSWORD}"
-      - "--mysqld.address=${DATABASE_HOST}:3306"
+      - "--mysqld.address=${DATABASE_URL}"
     ports:
       - "9104:9104"
-    networks:
-      - homesweet-network
-  ### Elasticsearch
-  elasticsearch:
-    build:
-      context: .
-      dockerfile: Dockerfile.elasticsearch
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
-    ports:
-      - "9200:9200"
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    networks:
-      - homesweet-network
-
-  ### Logstash
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.15.0
-    container_name: logstash
-    depends_on:
-      - elasticsearch
-    ports:
-      - "5044:5044"
-      - "9600:9600"
-    volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline
-    environment:
-      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
-    networks:
-      - homesweet-network
-
-  ### Kibana
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.15.0
-    container_name: kibana
-    depends_on:
-      - elasticsearch
-    ports:
-      - "5601:5601"
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     networks:
       - homesweet-network
 
 networks:
   homesweet-network:
     driver: bridge
-
-volumes:
-  mysqldata:
-  redisdata:
-  es_data:

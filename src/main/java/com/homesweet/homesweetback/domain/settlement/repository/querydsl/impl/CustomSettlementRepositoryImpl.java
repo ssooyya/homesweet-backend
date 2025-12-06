@@ -75,6 +75,7 @@ public class CustomSettlementRepositoryImpl implements CustomSettlementRepositor
                 .limit(limit)
                 .fetch();
     }
+    //****** 이해하기
     public List<SettlementCreateDto> findOrdersByIds(List<Long> ids) {
         QOrder o = QOrder.order;
         QOrderItem oi = QOrderItem.orderItem;

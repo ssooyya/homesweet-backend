@@ -32,7 +32,6 @@ public class SettlementService {
     private final SettlementValidator settlementValidator;
     private final SettlementCalculator settlementCalculator;
     private final ExtractedSeller extractedSeller;
-    private final CustomSettlementRepository customSettlementRepository;
     // 주문 확정(결제 완료)시 정산 생성
     @Transactional
     public void createSettlement(Order order) {
@@ -74,24 +73,24 @@ public class SettlementService {
         return settlementRepository.findBySettlement(userId, range.start(), range.end(), normal, pageable);
     }
     // 주문 취소시 환불 금액 반영 및 정산 금액 변경
-    @Transactional
-    public void orderCanceled(Order order) {
-        Long orderId = order.getId();
-
-        // 1. 정산 데이터 확인
-        Settlement settlement = settlementRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND));
-        // 2.주문취소시 검증
-        settlementValidator.validateCanceled(settlement, order);
-        // 3. 환불금액 계산 (판매금액 + 부가세 - 수수료)
-        BigDecimal refundAmount = settlementCalculator.refundResult(settlement);
-
-        // 4. 환불 금액 반영 및 정산 금액 재계산
-        int updated = customSettlementRepository.applyRefundAmount(orderId, refundAmount);
-
-        // 5. 반영 실패시
-        if(updated != 1){
-            throw new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND);
-        }
-    }
+//    @Transactional
+//    public void orderCanceled(Order order) {
+//        Long orderId = order.getId();
+//
+//        // 1. 정산 데이터 확인
+//        Settlement settlement = settlementRepository.findByOrderId(orderId)
+//                .orElseThrow(() -> new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND));
+//        // 2.주문취소시 검증
+//        settlementValidator.validateCanceled(settlement, order);
+//        // 3. 환불금액 계산 (판매금액 + 부가세 - 수수료)
+//        BigDecimal refundAmount = settlementCalculator.refundResult(settlement);
+//
+//        // 4. 환불 금액 반영 및 정산 금액 재계산
+//        int updated = customSettlementRepository.applyRefundAmount(orderId, refundAmount);
+//
+//        // 5. 반영 실패시
+//        if(updated != 1){
+//            throw new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND);
+//        }
+//    }
 }

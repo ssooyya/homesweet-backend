@@ -11,6 +11,7 @@ import com.homesweet.homesweetback.domain.settlement.repository.querydsl.CustomS
 import com.homesweet.homesweetback.domain.settlement.repository.querydsl.impl.CustomSettlementRepositoryImpl;
 import com.homesweet.homesweetback.domain.settlement.util.SettlementStatsProjection;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -118,15 +119,16 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long>{
 
     //
     @Query("""
-    SELECT 
-        COUNT(s),  
-        SUM(CASE WHEN s.settlementStatus = 'COMPLETED' THEN 1 ELSE 0 END)
-    FROM Settlement s 
+    SELECT
+        COUNT(s) AS totalCount,
+        COALESCE(SUM(CASE WHEN s.settlementStatus = 'COMPLETED' THEN 1 ELSE 0 END)) AS completedCount
+    FROM Settlement s
     JOIN Order o ON o.id = s.orderId
     WHERE s.userId = :userId
-    AND o.orderedAt >= :startDate 
+    AND o.orderedAt >= :startDate
     AND o.orderedAt < :endDate
 """)
+    @Cacheable(value = "stats", key = "#userId + ':' + #startDate.toString() + ':' + #endDate.toString()")
     SettlementStatsProjection findStats(Long userId, LocalDateTime startDate, LocalDateTime endDate);
 
     Optional<Settlement> findByOrderId(@Param("orderId") Long orderId);

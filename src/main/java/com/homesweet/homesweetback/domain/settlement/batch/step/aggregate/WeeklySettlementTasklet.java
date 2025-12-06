@@ -1,11 +1,6 @@
 package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
-import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
-import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.WeeklyDateRangeCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
@@ -23,7 +18,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -32,10 +26,7 @@ import java.util.Map;
 public class WeeklySettlementTasklet implements Tasklet {
     private final SettlementRepository settlementRepository;
     private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
-    private final DailySettlementRepository dailySettlementRepository;
     private final SettlementSaver settlementSaver;
-    private final WeeklySettlementRepository weeklySettlementRepository;
 
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;

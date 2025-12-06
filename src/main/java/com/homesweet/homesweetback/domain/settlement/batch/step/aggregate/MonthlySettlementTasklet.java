@@ -1,9 +1,6 @@
 package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
@@ -21,7 +18,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -30,8 +26,6 @@ import java.util.Map;
 public class MonthlySettlementTasklet implements Tasklet {
     private final SettlementRepository settlementRepository;
     private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
-    private final WeeklySettlementRepository weeklySettlementRepository;
     private final SettlementSaver settlementSaver;
 
     @Value("#{jobParameters['cutoff']}")

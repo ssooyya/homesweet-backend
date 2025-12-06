@@ -1,8 +1,5 @@
 package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
-import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
@@ -16,13 +13,10 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.validation.Validator;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Year;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -31,10 +25,7 @@ import java.util.Map;
 public class YearlySettlementTasklet implements Tasklet {
     private final SettlementRepository settlementRepository;
     private final SettlementValidator settlementValidator;
-    private final SettlementAggregator settlementAggregator;
-    private final MonthlySettlementRepository monthlySettlementRepository;
     private final SettlementSaver settlementSaver;
-    private final Validator validator;
 
     @Value("#{jobParameters['cutoff']}")
     private String cutoffString;
