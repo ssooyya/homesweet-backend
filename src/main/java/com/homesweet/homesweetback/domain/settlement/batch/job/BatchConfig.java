@@ -80,7 +80,7 @@ public class BatchConfig {
      */
     // step1 -> 신규 주문건 정산 생성
     @Bean
-    public Step settlementCreateStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementCreateProcessor settlementCreateProcessor, SettlementCreateWriter settlementCreateWriter, ZeroOffsetItemReader zeroOffsetItemReader, TaskExecutor taskExecutor) {
+    public Step settlementCreateStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementCreateProcessor settlementCreateProcessor, SettlementCreateWriter settlementCreateWriter, ZeroOffsetItemReader zeroOffsetItemReader) {
         return new StepBuilder("settlementCreateStep", jobRepository)
                 .<SettlementCreateDto, Settlement>chunk(1000, transactionManager)
                 .reader(zeroOffsetItemReader)
