@@ -5,7 +5,7 @@ import { check, sleep } from "k6";
 // 토스 api mock 처리
 
 // JWT token
-const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDY0ODgwMywiZXhwIjoxNzY0NjY2ODAzfQ.DBVN1y_zaKgiOjZzqsElDb8mjKdzHvL5POti1RunxYcYque4PapQ3ZSsdA0TnJHYokAlTuWFVdaNzd1R1-wR4g";
+const TOKEN = "11";
 
 export const options = {
     discardResponseBodies: false,

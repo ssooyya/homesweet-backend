@@ -31,8 +31,6 @@ spring:
         highlight_sql: true
         use_sql_comments: true
         default_batch_fetch_size: 30
-  elasticsearch:
-    uris: http://3.36.60.169:9200
   security:
     oauth2:
       client:
