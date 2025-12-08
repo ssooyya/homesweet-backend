@@ -34,4 +34,3 @@ ALTER TABLE settlement
 
 ALTER TABLE settlement
     ADD PRIMARY KEY (settlement_id);
-
