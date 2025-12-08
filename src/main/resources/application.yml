@@ -35,7 +35,7 @@ spring:
 
   datasource:
     hikari:
-      maximum-pool-size: 20
+      maximum-pool-size: 50
       minimum-idle: 5
       idle-timeout: 300000
       max-lifetime: 1800000

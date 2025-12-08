@@ -24,6 +24,19 @@ public interface YearlySettlementRepository extends JpaRepository<YearlySettleme
     @Query("SELECT y FROM YearlySettlement y WHERE y.userId = :userId")
     List<YearlySettlement> findByYearlySettlement(@Param("userId") Long userId);
 
+    @Query("""
+        SELECT COUNT(y)
+        FROM YearlySettlement y
+        WHERE y.userId = :userId
+          AND y.year >= :fromYear
+          AND y.year <  :toYearEx
+    """)
+    long countByRange(
+            @Param("userId") Long userId,
+            @Param("fromYear") Short fromYear,
+            @Param("toYearEx") Short toYearEx
+    );
+
     // 일별 집계 조회
     @Query(value = """
     SELECT y

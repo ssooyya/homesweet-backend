@@ -15,16 +15,15 @@ public class SettlementKeyBuilder {
     private final YearlyDateRangeCalculator yearlyCalc;
 
     // 일
-    public String dailySummaryKey(Long userId, LocalDate start, LocalDate end, Pageable pageable)
-    {
-        String from = start.toString();  // 항상 yyyy-MM-dd
-        String to = end.toString();      // 항상 yyyy-MM-dd
-
-        return String.format("daily:summary:u%d:%s:%s:p%d:s%d", userId, from, to, pageable.getPageNumber(), pageable.getPageSize());
+    public String dailySummaryKey(Long userId, LocalDate start, LocalDate end, int page, int size) {
+        return String.format(
+                "daily:summary:u%d:%s:%s:p%d:s%d",
+                userId, start, end, page, size
+        );
     }
 
     // 주
-    public String weeklySummaryKey(Long userId, LocalDate startDate, Pageable pageable) {
+    public String weeklySummaryKey(Long userId, LocalDate startDate, int page, int size) {
 
         WeeklyDateRangeCalculator.WeeklyDateRange range =
                 WeeklyDateRangeCalculator.getWeeklyDateRange(startDate, startDate);
@@ -38,20 +37,28 @@ public class SettlementKeyBuilder {
                 weekStart.getYear(),
                 weekStart.getMonthValue(),
                 week,
-                pageable.getPageNumber(),
-                pageable.getPageSize()
+                page, size
         );
     }
     // 월
-    public String monthlySummaryKey(Long userId, LocalDate start, LocalDate end, Pageable pageable) {
-        return String.format("monthly:summary:u%d:%s:%s:p%d:s%d", userId, start, end, pageable.getPageNumber(), pageable.getPageSize());
+    public String monthlySummaryKey(Long userId, LocalDate start, LocalDate end, int page, int size) {
+        return String.format(
+                "monthly:summary:u%d:%s:%s:p%d:s%d",
+                userId, start, end, page, size
+        );
     }
     // 연
-    public String yearlySummaryKey(Long userId, LocalDate start, LocalDate end, Pageable pageable)
-    {
-        var range = yearlyCalc.calculate(start, end);
+    public String yearlySummaryKey(Long userId, LocalDate start, LocalDate end, int page, int size) {
 
-        return String.format("yearly:summary:u%d:%s:%s:p%d:s%d", userId, range.fromYear(),
-                range.toYearExclusive(), pageable.getPageNumber(), pageable.getPageSize());
+        YearlyDateRangeCalculator.YearlyDateRange range =
+                yearlyCalc.calculate(start, end);
+
+        return String.format(
+                "yearly:summary:u%d:y%d:yex%d:p%d:s%d",
+                userId,
+                range.fromYear(),
+                range.toYearExclusive(),
+                page, size
+        );
     }
 }

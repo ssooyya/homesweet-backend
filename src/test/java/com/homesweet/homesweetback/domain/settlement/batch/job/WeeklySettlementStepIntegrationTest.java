@@ -169,7 +169,5 @@ class WeeklySettlementStepIntegrationTest {
         assertThat(weekly.getTotalFee()).isEqualTo(st.getFee());
         assertThat(weekly.getTotalVat()).isEqualTo(st.getVat());
         assertThat(weekly.getTotalSettlement()).isEqualTo(st.getSettlementAmount());
-
-
     }
 }

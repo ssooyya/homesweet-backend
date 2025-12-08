@@ -6,16 +6,16 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     scheme: http
     static_configs:
-      - targets: ['43.202.45.8:8080']
+      - targets: ['15.165.237.208:8080']
 
   - job_name: 'ec2-node-exporter'
     static_configs:
-      - targets: ['43.202.45.8:9100']
+      - targets: ['15.165.237.208:9100']
 
   - job_name: 'ec2-mysql-exporter'
     static_configs:
-      - targets: ['43.202.45.8:9104']
+      - targets: ['15.165.237.208:9104']
 
   - job_name: 'elasticsearch-exporter'
     static_configs:
-      - targets: [ '43.202.45.8:9114' ]
+      - targets: [ '15.165.237.208:9114' ]

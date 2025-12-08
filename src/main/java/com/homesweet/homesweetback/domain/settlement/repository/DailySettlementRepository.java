@@ -21,13 +21,13 @@ public interface DailySettlementRepository extends JpaRepository<DailySettlement
     List<DailySettlement> findByDailySettlement(@Param("userId") Long userId);
 
     // 일별 정산 건수 조회
-//    @Query("""
-//    SELECT COUNT(d) FROM DailySettlement d
-//    WHERE d.userId = :userId
-//       AND d.settlementDate >= :startDate
-//       AND d.settlementDate < :endDate
-//    """)
-//    int countByUserIdInRange(Long userId, LocalDate startDate, LocalDate endDate);
+    @Query("""
+    SELECT COUNT(d) FROM DailySettlement d
+    WHERE d.userId = :userId
+       AND d.settlementDate >= :startDate
+       AND d.settlementDate < :endDate
+    """)
+    long countByDailySettlementRange(Long userId, LocalDateTime startDate, LocalDateTime endDate);
 
     // 일별 집계 조회
     @Query(value = """

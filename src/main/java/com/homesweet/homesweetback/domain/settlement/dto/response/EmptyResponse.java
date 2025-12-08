@@ -51,9 +51,9 @@ public class EmptyResponse {
         return new  PageImpl<>(List.of(res), pageable, 0);
     }
     // 연별
-    public Page<YearlySettlementResponse> createEmptyYearly(YearMonth fromYM, Pageable pageable) {
+    public Page<YearlySettlementResponse> createEmptyYearly(short year, Pageable pageable) {
         YearlySettlementResponse res = new YearlySettlementResponse(
-                (short) fromYM.getYear(),
+                year,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO,
                 0L

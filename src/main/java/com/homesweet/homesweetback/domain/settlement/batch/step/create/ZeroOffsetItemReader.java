@@ -1,18 +1,13 @@
-package com.homesweet.homesweetback.domain.settlement.batch.zeroOffset;
+package com.homesweet.homesweetback.domain.settlement.batch.step.create;
 
-import com.homesweet.homesweetback.domain.order.entity.Order;
 import com.homesweet.homesweetback.domain.order.entity.OrderStatus;
 import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementCreateDto;
-import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.querydsl.CustomSettlementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.Hibernate;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;

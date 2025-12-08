@@ -3,10 +3,6 @@ package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 import com.homesweet.homesweetback.common.exception.BusinessException;
 import com.homesweet.homesweetback.common.exception.ErrorCode;
 import com.homesweet.homesweetback.domain.grade.service.GradeService;
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.data.HelperData;
-import com.homesweet.homesweetback.domain.settlement.entity.MonthlySettlement;
-import com.homesweet.homesweetback.domain.settlement.repository.MonthlySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
 import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
@@ -26,29 +22,29 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("연별 tasklet 단위 테스트")
 class YearlySettlementTaskletTest {
+
     @InjectMocks
     private YearlySettlementTasklet yearlySettlementTasklet;
 
     @Mock
     private SettlementRepository settlementRepository;
+
     @Mock
     private SettlementValidator settlementValidator;
+
     @Mock
     private SettlementSaver settlementSaver;
-    @Mock
-    private SettlementAggregator settlementAggregator;
+
     @Mock
     private GradeService gradeService;
 
@@ -56,27 +52,20 @@ class YearlySettlementTaskletTest {
     ChunkContext context = mock(ChunkContext.class);
 
     @BeforeEach
-    void injectRealAggregator() {
-        ReflectionTestUtils.setField(yearlySettlementTasklet, "cutoffString",
-                "2025-11-25T00:00:00");
-        SettlementCalculator calculator =
-                new SettlementCalculator(gradeService, settlementRepository);
-
-        SettlementAggregator realAggregator = new SettlementAggregator(calculator);
-
-        // ★ 실제 aggregator 주입 (성공 케이스만 사용)
+    void setUp() {
         ReflectionTestUtils.setField(
                 yearlySettlementTasklet,
-                "settlementAggregator",
-                realAggregator
+                "cutoffString",
+                "2025-11-25T00:00:00"
         );
     }
 
     @Nested
     @DisplayName("성공 케이스")
     class Success {
+
         @Test
-        @DisplayName("정상적으로 연별 집계 성공한다.")
+        @DisplayName("단일 사용자 연별 집계 성공")
         void success_singleUser() {
             Long userId = 10L;
 
@@ -88,17 +77,20 @@ class YearlySettlementTaskletTest {
 
             doNothing().when(settlementValidator).validateTotals(any());
 
-            RepeatStatus result = yearlySettlementTasklet.execute(contribution, context);
+            RepeatStatus status =
+                    yearlySettlementTasklet.execute(contribution, context);
 
-            assertThat(result).isEqualTo(RepeatStatus.FINISHED);
+            assertThat(status).isEqualTo(RepeatStatus.FINISHED);
 
-            verify(settlementSaver, times(1))
-                    .saveYearly(eq(userId), eq((short) 2025), any(SettlementTotals.class));
-
+            verify(settlementSaver).saveYearly(
+                    eq(userId),
+                    eq((short) 2025),
+                    any(SettlementTotals.class)
+            );
         }
 
         @Test
-        @DisplayName("여러 사용자가 있을 때 각각 집계가 수행된다.")
+        @DisplayName("여러 사용자 연별 집계 성공")
         void success_multiUsers() {
             List<Long> userIds = List.of(1L, 2L);
 
@@ -117,24 +109,21 @@ class YearlySettlementTaskletTest {
         }
     }
 
+    // ---------------------------------------------------
+    // 실패 케이스
+    // ---------------------------------------------------
     @Nested
     @DisplayName("실패 케이스")
     class Failure {
-        @BeforeEach
-        void useMockAggregator() {
-            // 실패 테스트에서는 mock aggregator 사용해야함
-            ReflectionTestUtils.setField(
-                    yearlySettlementTasklet,
-                    "settlementAggregator",
-                    settlementAggregator
-            );
-        }
 
         @Test
-        @DisplayName("cutoffString 파싱 오류 → 예외 발생")
+        @DisplayName("cutoffString 파싱 실패 → 예외 발생")
         void execute_fail_invalidCutoff() {
-            ReflectionTestUtils.setField(yearlySettlementTasklet,
-                    "cutoffString", "INVALID");
+            ReflectionTestUtils.setField(
+                    yearlySettlementTasklet,
+                    "cutoffString",
+                    "INVALID_DATE"
+            );
 
             assertThatThrownBy(() ->
                     yearlySettlementTasklet.execute(contribution, context)
@@ -142,14 +131,13 @@ class YearlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("validator.validateYearly()에서 BusinessException 발생")
-        void execute_fail_validatorError() {
+        @DisplayName("validator.validateTotals() 에서 BusinessException 발생 → 예외 전파됨")
+        void execute_fail_validatorThrows() {
             Long userId = 11L;
+            SettlementTotals totals = SettlementTotals.empty();
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
-
-            SettlementTotals totals = SettlementTotals.empty();
 
             given(settlementRepository.sumTotals(anyLong(), any(), any()))
                     .willReturn(totals);
@@ -163,9 +151,8 @@ class YearlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("findDistinctUserIds에서 예외 → 전파됨")
-        void fail_repositoryError() {
-
+        @DisplayName("findDistinctUserIds() 단계에서 예외 → 전파됨")
+        void execute_fail_repoError() {
             given(settlementRepository.findDistinctUserIds())
                     .willThrow(new RuntimeException("DB ERROR"));
 
@@ -176,20 +163,18 @@ class YearlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("saveYearly 중 예외 발생")
-        void fail_saveError() {
-
+        @DisplayName("saveYearly() 중 예외 발생 → 전파됨")
+        void execute_fail_saveError() {
             Long userId = 11L;
+            SettlementTotals totals = SettlementTotals.empty();
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            SettlementTotals totals = SettlementTotals.empty();
-
             given(settlementRepository.sumTotals(anyLong(), any(), any()))
                     .willReturn(totals);
 
-            doNothing().when(settlementValidator).validateTotals(any());
+            doNothing().when(settlementValidator).validateTotals(totals);
 
             doThrow(new RuntimeException("SAVE ERROR"))
                     .when(settlementSaver)

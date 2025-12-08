@@ -1,24 +1,10 @@
 package com.homesweet.homesweetback.domain.settlement.service.unit;
 
-import com.homesweet.homesweetback.common.exception.BusinessException;
-import com.homesweet.homesweetback.common.exception.ErrorCode;
-import com.homesweet.homesweetback.domain.grade.service.GradeService;
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.data.HelperData;
 import com.homesweet.homesweetback.domain.settlement.dto.response.DailySettlementResponse;
-import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
-import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
-import com.homesweet.homesweetback.domain.settlement.mapper.SettlementMapper;
 import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
-import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.service.DailySettlementService;
 import com.homesweet.homesweetback.domain.settlement.dto.response.EmptyResponse;
-import com.homesweet.homesweetback.domain.settlement.util.SettlementStatusUpdater;
-import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
-import com.homesweet.homesweetback.domain.settlement.util.saver.SettlementSaver;
-import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
-import com.homesweet.homesweetback.domain.settlement.validation.SettlementValidator;
-import org.junit.jupiter.api.BeforeEach;
+import com.homesweet.homesweetback.domain.settlement.service.SettlementCacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,19 +16,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,258 +38,135 @@ class DailySettlementServiceTest {
     private DailySettlementRepository dailySettlementRepository;
     @Mock
     private EmptyResponse emptyResponse;
+
     @Mock
-    private SettlementMapper settlementMapper;
-    @Mock
-    private SettlementCalculator settlementCalculator;
-    // fail
-    @Mock
-    private SettlementAggregator settlementAggregator;
-    @Mock
-    private SettlementRepository settlementRepository;
-    @Mock
-    private SettlementValidator settlementValidator;
-    @Mock
-    private SettlementSaver settlementSaver;
-    @Mock
-    private SettlementStatusUpdater settlementStatusUpdater;
-    @Mock
-    private GradeService gradeService;
+    private SettlementCacheService settlementCacheService;
+    Pageable pageable = PageRequest.of(0, 10);
+
     @Nested
     @DisplayName("성공 케이스")
     class Success {
-        private SettlementAggregator settlementAggregator;
-        // aggregate 실제 주입
-        @BeforeEach
-        void setUp() {
-            // SettlementCalculator 가 필요로 하는 두 의존성 mock 준비
-            SettlementCalculator calculator = new SettlementCalculator(
-                    gradeService,       // @Mock
-                    settlementRepository   // @Mock
-            );
-            // 진짜 Aggregator 생성 (mock X → 로직이 실제로 커버됨)
-            SettlementAggregator aggregator = new SettlementAggregator(calculator);
-            // DailySettlementService 의 private 필드에 실제 aggregator 주입
-            ReflectionTestUtils.setField(
-                    dailySettlementService,
-                    "settlementAggregator",
-                    aggregator
-            );
-        }
+
         @Test
-        @DisplayName("일별 데이터가 존재하면 일별 response 조회")
-        void getDailySummary_Success() {
-            // given
+        @DisplayName("캐시 HIT → count 조회 후 정상 Page 반환")
+        void getDailySummary_success() {
+
             Long userId = 1L;
-            LocalDate startDate = LocalDate.of(2025, 11, 10);
-            LocalDate endDate = LocalDate.of(2025, 11, 11);
-            Pageable pageable = PageRequest.of(0, 10);
+            LocalDate start = LocalDate.of(2025, 3, 1);
+            LocalDate end   = LocalDate.of(2025, 3, 1);
 
-            DailySettlement dailySettlement = HelperData.getDailySettlement();
-            Page<DailySettlement> page = new PageImpl<>(List.of(dailySettlement));
-            // 정산 통계용 mock
-            SettlementCalculator.SettlementStats stats = new SettlementCalculator.SettlementStats(10L, 8L, 80.0);
-            // mapper 반환 객체
-            DailySettlementResponse dailySettlementResponse = HelperData.getDailySettlementResponse();
-            // 동작
-            given(dailySettlementRepository.findByDailySettlementByRange(eq(userId), any(LocalDateTime.class), any(LocalDateTime.class), any(Pageable.class))).willReturn(page);
-            given(settlementCalculator.calculateStats(anyLong(), any(LocalDate.class), any(LocalDate.class))).willReturn(stats);
-            given(settlementMapper.toDailySettlementResponseList(anyList(), any()))
-                    .willReturn(List.of(dailySettlementResponse));
+            DailySettlementResponse resp = new DailySettlementResponse(
+                    BigDecimal.valueOf(10000),
+                    BigDecimal.valueOf(1000),
+                    BigDecimal.valueOf(500),
+                    BigDecimal.ZERO,
+                    BigDecimal.valueOf(8500),
+                    start,
+                    "COMPLETED",
+                    100.0,
+                    1L
+            );
 
-            // when
-            Page<DailySettlementResponse> result = dailySettlementService.getDailySummary(userId, startDate, endDate, pageable);
+            // 1) 캐시 HIT 설정
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of(resp));
 
-            // then
-            assertThat(result).isNotNull();
+            // 2) count 조회 Stub
+            LocalDateTime from = start.atStartOfDay();
+            LocalDateTime to = end.plusDays(1).atStartOfDay();
+
+            when(dailySettlementRepository.countByDailySettlementRange(userId, from, to))
+                    .thenReturn(1L);
+
+            // WHEN
+            Page<DailySettlementResponse> result =
+                    dailySettlementService.getDailySummary(userId, start, end, pageable);
+
+            // THEN
             assertThat(result.getContent()).hasSize(1);
-            assertThat(result.getContent().get(0).settlementStatus()).isEqualTo(dailySettlementResponse.settlementStatus());
-            assertThat(result.getContent().get(0).totalSales()).isEqualTo(dailySettlementResponse.totalSales());
-        }
+            assertThat(result.getTotalElements()).isEqualTo(1L);
+            assertThat(result.getContent().get(0).totalSales())
+                    .isEqualByComparingTo("10000");
 
-        @Test
-        @DisplayName("일별 집계가 날짜 기준으로 계산된다.")
-        void getSettlement() {
-            // given
-            Long userId = 1L;
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end = LocalDateTime.of(2025, 11, 11, 0, 0);
-
-            Settlement s1 = HelperData.getSettlementWithDate(LocalDate.of(2025, 11, 10));
-            Settlement s2 = HelperData.getSettlementWithDate(LocalDate.of(2025, 11, 11));
-            List<Settlement> settlements = List.of(s1, s2);
-
-            Map<LocalDate, SettlementTotals> aggregated = Map.of(
-                    LocalDate.of(2025, 11, 10), SettlementTotals.empty(),
-                    LocalDate.of(2025, 11, 11), SettlementTotals.empty()
-            );
-            // repository
-            given(settlementRepository.findBySettlementDateRange(userId, start, end))
-                    .willReturn(settlements);
-            // validator
-            doNothing().when(settlementValidator).validateDaily(settlements);
-            // when
-            dailySettlementService.getSettlement(userId, start, end);
-            // saveDaily 두 번 호출
-            verify(settlementSaver, times(2))
-                    .saveDaily(eq(userId), any(LocalDate.class), any(SettlementTotals.class));
-
-            // 마지막 상태 업데이트
-            verify(settlementStatusUpdater, times(1))
-                    .markDailyCompleted(userId, start, end);
+            // EmptyResponse 호출 X
+            verify(emptyResponse, never()).createEmptyDaily(any(), any());
         }
     }
     @Nested
     @DisplayName("실패 케이스")
-    class Fail {
+    class Failure {
+
         @Test
-        @DisplayName("일별 데이터가 없다면 빈 응답 반환")
-        void getDailySummary_EmptyData() {
+        @DisplayName("캐시 MISS → EmptyResponse 반환, count 조회되지 않음")
+        void getDailySummary_empty() {
+
             Long userId = 1L;
-            LocalDate startDate = LocalDate.of(2025, 11, 10);
-            LocalDate endDate = LocalDate.of(2025, 11, 11);
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<DailySettlement> emptyPage = Page.empty(pageable);
+            LocalDate start = LocalDate.of(2025, 3, 1);
+            LocalDate end   = LocalDate.of(2025, 3, 5);
 
-            DailySettlementResponse emptyDaily = HelperData.emptyDailySettlementResponse(startDate);
+            // 1) 캐시 MISS 설정
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of());
 
-            Page<DailySettlementResponse> page = new PageImpl<>(List.of(emptyDaily), pageable, 1);
+            Page<DailySettlementResponse> emptyPage =
+                    new PageImpl<>(List.of(), pageable, 0);
 
-            // mapper 반환 빈객체
-            DailySettlementResponse emptyDailySettlementResponse = HelperData.emptyDailySettlementResponse(startDate);
-            // 동작
-            given(dailySettlementRepository.findByDailySettlementByRange(eq(userId), any(), any(), eq(pageable))).willReturn(emptyPage);
-            given(emptyResponse.createEmptyDaily(eq(startDate), eq(pageable))).willReturn(page);
+            when(emptyResponse.createEmptyDaily(start, pageable))
+                    .thenReturn(emptyPage);
 
-            // when
-            Page<DailySettlementResponse> result = dailySettlementService.getDailySummary(userId, startDate, endDate, pageable);
+            // WHEN
+            Page<DailySettlementResponse> result =
+                    dailySettlementService.getDailySummary(userId, start, end, pageable);
 
-            assertThat(result.getContent().get(0).settlementStatus()).isEqualTo("CANCELED");
+            // THEN
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+
+            // EmptyResponse 호출 O
+            verify(emptyResponse, times(1))
+                    .createEmptyDaily(start, pageable);
+
+            // count 조회 금지
+            verify(dailySettlementRepository, never())
+                    .countByDailySettlementRange(any(), any(), any());
         }
 
         @Test
-        @DisplayName("정산 데이터가 없으면 BusinessException 발생")
-        void getSettlement_Fail_NoSettlements() {
-            // given
+        @DisplayName("캐시 HIT 상태에서 count 조회 실패 시 예외 전파")
+        void getDailySummary_countError() {
+
             Long userId = 1L;
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end = LocalDateTime.of(2025, 11, 11, 0, 0);
+            LocalDate start = LocalDate.of(2025, 4, 1);
+            LocalDate end   = LocalDate.of(2025, 4, 2);
 
-            // repository는 빈 리스트 반환
-            given(settlementRepository.findBySettlementDateRange(userId, start, end))
-                    .willReturn(List.of());
-
-            // validator가 예외 던짐 (실제 동작 그대로)
-            doThrow(new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND))
-                    .when(settlementValidator).validateDaily(List.of());
-
-            // when & then
-            assertThatThrownBy(() -> dailySettlementService.getSettlement(userId, start, end))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessage(ErrorCode.SETTLEMENT_NOT_FOUND.getMessage());
-
-            // ★ 실패 시 절대 save / status update가 실행되면 안 됨
-            verify(settlementSaver, never()).saveDaily(any(), any(), any());
-            verify(settlementStatusUpdater, never()).markDailyCompleted(any(), any(), any());
-        }
-
-        @Test
-        @DisplayName("aggregator가 null 반환 시 예외 발생")
-        void getSettlement_Fail_AggregatorReturnsNull() {
-            // given
-            Long userId = 1L;
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end = LocalDateTime.of(2025, 11, 11, 0, 0);
-
-            Settlement s1 = HelperData.getSettlementWithDate(LocalDate.of(2025, 11, 10));
-            List<Settlement> settlements = List.of(s1);
-
-            given(settlementRepository.findBySettlementDateRange(userId, start, end))
-                    .willReturn(settlements);
-
-            doNothing().when(settlementValidator).validateDaily(settlements);
-
-//             aggregator가 null을 반환하도록
-            given(settlementAggregator.aggregate(
-                    anyList(),
-                    any(),     // keyExtractor
-                    any()      // totalsMapper
-            )).willReturn(null);
-
-            // when & then
-            assertThatThrownBy(() -> dailySettlementService.getSettlement(userId, start, end))
-                    .isInstanceOf(NullPointerException.class);
-
-            verify(settlementSaver, never()).saveDaily(any(), any(), any());
-            verify(settlementStatusUpdater, never()).markDailyCompleted(any(), any(), any());
-        }
-
-        @Test
-        @DisplayName("dailySettlementSaver.saveDaily 중 예외 발생")
-        void getSettlement_Fail_SaveError() {
-            // given
-            Long userId = 1L;
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end = LocalDateTime.of(2025, 11, 11, 0, 0);
-
-            Settlement s1 = HelperData.getSettlementWithDate(LocalDate.of(2025, 11, 10));
-            List<Settlement> settlements = List.of(s1);
-
-            Map<LocalDate, SettlementTotals> map = Map.of(
-                    LocalDate.of(2025, 11, 10), SettlementTotals.empty()
+            DailySettlementResponse resp = new DailySettlementResponse(
+                    BigDecimal.valueOf(10000),
+                    BigDecimal.valueOf(1000),
+                    BigDecimal.valueOf(500),
+                    BigDecimal.ZERO,
+                    BigDecimal.valueOf(8500),
+                    start,
+                    "COMPLETED",
+                    90.0,
+                    1L
             );
 
-            given(settlementRepository.findBySettlementDateRange(userId, start, end))
-                    .willReturn(settlements);
+            // 캐시 HIT
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of(resp));
 
-            doNothing().when(settlementValidator).validateDaily(settlements);
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn((Map) map);
+            // count 예외 유도
+            when(dailySettlementRepository.countByDailySettlementRange(any(), any(), any()))
+                    .thenThrow(new RuntimeException("DB ERROR"));
 
-            // save에서 예외 발생시키기
-            doThrow(new RuntimeException("DB error"))
-                    .when(settlementSaver).saveDaily(any(), any(), any());
-
-            // when & then
-            assertThatThrownBy(() -> dailySettlementService.getSettlement(userId, start, end))
+            // WHEN & THEN
+            assertThatThrownBy(() ->
+                    dailySettlementService.getDailySummary(userId, start, end, pageable)
+            )
                     .isInstanceOf(RuntimeException.class)
-                    .hasMessage("DB error");
+                    .hasMessage("DB ERROR");
 
-            verify(settlementStatusUpdater, never()).markDailyCompleted(any(), any(), any());
-        }
-
-        @Test
-        @DisplayName("markDailyCompleted 중 예외 발생")
-        void getSettlement_Fail_StatusUpdateError() {
-            // given
-            Long userId = 1L;
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end = LocalDateTime.of(2025, 11, 11, 0, 0);
-
-            Settlement s1 = HelperData.getSettlementWithDate(LocalDate.of(2025, 11, 10));
-            List<Settlement> settlements = List.of(s1);
-
-            Map<LocalDate, SettlementTotals> map = Map.of(
-                    LocalDate.of(2025, 11, 10), SettlementTotals.empty()
-            );
-
-            given(settlementRepository.findBySettlementDateRange(userId, start, end))
-                    .willReturn(settlements);
-
-            doNothing().when(settlementValidator).validateDaily(settlements);
-            given(settlementAggregator.aggregate(anyList(), any(), any()))
-                    .willReturn((Map) map);
-
-            doNothing().when(settlementSaver).saveDaily(any(), any(), any());
-
-            // 상태 변경에서 예외
-            doThrow(new RuntimeException("Update error"))
-                    .when(settlementStatusUpdater).markDailyCompleted(userId, start, end);
-
-            // when & then
-            assertThatThrownBy(() -> dailySettlementService.getSettlement(userId, start, end))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Update error");
+            verify(emptyResponse, never()).createEmptyDaily(any(), any());
         }
     }
 }

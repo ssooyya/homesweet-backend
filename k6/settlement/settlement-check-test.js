@@ -2,7 +2,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 
 // 🔐 JWT Token
-const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NDg5MjExNSwiZXhwIjoxNzY0OTEwMTE1fQ.fp7AJX_ajkj1kLu_GP31fHFgLsGbHFkbH4jOHlLgn6TXMTbwCHRw6qn_Bl5XH83atfNhOpDadfsNWJ3Uvlmrsg";
+const TOKEN = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMSIsImVtYWlsIjoiaHNrd29vbjdAZ21haWwuY29tIiwibmFtZSI6Iu2drOyImCIsInByb3ZpZGVyIjoiZ29vZ2xlIiwicm9sZSI6IlNFTExFUiIsImlhdCI6MTc2NTA3NzIwMiwiZXhwIjoxNzY1MDk1MjAyfQ.Wz7-jTn_QV69z1pOWSNyljvYiVUM8n89jdwIn8H5VLLPCNTBwetYEqeUVnbfaQ-tnTTAOPoshvNtKntlEhwyhg";
 
 const BASE_URL = "http://localhost:8080/api/v1/settlement";
 const USER_ID = 11;

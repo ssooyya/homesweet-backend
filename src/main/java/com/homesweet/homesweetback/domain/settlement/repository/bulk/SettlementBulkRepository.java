@@ -21,7 +21,8 @@ public class SettlementBulkRepository {
                 "INSERT INTO settlement(" +
                         "settlement_id, order_id, user_id, settlement_status, " +
                         "sales_amount, fee, vat, refund_amount, settlement_amount, settlement_date" +
-                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, ?)",
+                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, ?)" +
+                        "ON DUPLICATE KEY UPDATE " + "settlement_id = settlement_id",
                 list,
                 1000,
                 (ps, s) -> {

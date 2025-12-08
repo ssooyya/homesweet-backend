@@ -3,10 +3,7 @@ package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 import com.homesweet.homesweetback.common.exception.BusinessException;
 import com.homesweet.homesweetback.common.exception.ErrorCode;
 import com.homesweet.homesweetback.domain.grade.service.GradeService;
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
 import com.homesweet.homesweetback.domain.settlement.data.BatchHelperData;
-import com.homesweet.homesweetback.domain.settlement.data.HelperData;
-import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.SettlementStatusUpdater;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
@@ -27,10 +24,7 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,17 +35,19 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("일별 집계 tasklet 단위테스트")
 class DailySettlementTaskletTest {
+
     @InjectMocks
     private DailySettlementTasklet dailySettlementTasklet;
 
     @Mock
     private SettlementRepository settlementRepository;
+
     @Mock
     private SettlementValidator settlementValidator;
-    @Mock
-    private SettlementAggregator settlementAggregator;
+
     @Mock
     private SettlementSaver settlementSaver;
+
     @Mock
     private SettlementStatusUpdater settlementStatusUpdater;
 
@@ -61,7 +57,6 @@ class DailySettlementTaskletTest {
     StepContribution contribution = mock(StepContribution.class);
     ChunkContext context = mock(ChunkContext.class);
 
-    // aggregate 실제 주입
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(
@@ -69,28 +64,26 @@ class DailySettlementTaskletTest {
                 "cutoffString",
                 "2025-11-25T00:00:00"
         );
-        SettlementCalculator calculator = new SettlementCalculator(
-                gradeService, settlementRepository
-        );
-
-        SettlementAggregator aggregator = new SettlementAggregator(calculator);
-
-        ReflectionTestUtils.setField(
-                dailySettlementTasklet,   // 또는 monthlyTasklet
-                "settlementAggregator",
-                aggregator
-        );
     }
 
+    // --------------------------------------
+    // 성공 케이스
+    // --------------------------------------
     @Nested
     @DisplayName("성공 케이스")
     class Success {
+
         @Test
         @DisplayName("정상적으로 일별 집계가 실행된다")
         void execute_success_singleUser() {
             Long userId = 1L;
+
             SettlementTotals totals = new SettlementTotals(
-                    BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.valueOf(8)
+                    BigDecimal.TEN,
+                    BigDecimal.ONE,
+                    BigDecimal.ONE,
+                    BigDecimal.ZERO,
+                    BigDecimal.valueOf(8)
             );
 
             given(settlementRepository.findDistinctUserIds())
@@ -99,11 +92,11 @@ class DailySettlementTaskletTest {
             given(settlementRepository.sumTotals(anyLong(), any(), any()))
                     .willReturn(totals);
 
-            // validator OK
             doNothing().when(settlementValidator).validateTotals(totals);
 
-            doNothing().when(settlementSaver).saveDaily(anyLong(), any(), any());
-            doNothing().when(settlementStatusUpdater).markDailyCompleted(anyLong(), any(), any());
+            doNothing().when(settlementSaver).saveDaily(eq(userId), any(), eq(totals));
+
+            doNothing().when(settlementStatusUpdater).markDailyCompleted(eq(userId), any(), any());
 
             RepeatStatus status =
                     dailySettlementTasklet.execute(contribution, context);
@@ -115,24 +108,22 @@ class DailySettlementTaskletTest {
         }
     }
 
+    // --------------------------------------
+    // 실패 케이스
+    // --------------------------------------
     @Nested
     @DisplayName("실패 케이스")
     class Failure {
-        @BeforeEach
-        void removeRealAggregator() {
-            // 원래 mock으로 돌아가게 설정
-            ReflectionTestUtils.setField(
-                    dailySettlementTasklet,
-                    "settlementAggregator",
-                    settlementAggregator // mock 으로 되돌림
-            );
-        }
 
         @Test
-        @DisplayName("cutoffString 파싱 실패 시 DateTimeParseException 발생")
+        @DisplayName("cutoffString 파싱 실패 시 예외 발생")
         void execute_fail_invalidCutoff() {
 
-            ReflectionTestUtils.setField(dailySettlementTasklet, "cutoffString", "INVALID_DATE");
+            ReflectionTestUtils.setField(
+                    dailySettlementTasklet,
+                    "cutoffString",
+                    "INVALID_DATE"
+            );
 
             assertThatThrownBy(() ->
                     dailySettlementTasklet.execute(contribution, context)
@@ -140,16 +131,18 @@ class DailySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("settlementValidator.validateDaily() 에서 BusinessException 발생")
-        void execute_fail_validatorThrows() {
-
+        @DisplayName("sumTotals() 가 null이면 validator 에서 BusinessException 발생")
+        void execute_fail_nullTotals() {
             Long userId = 10L;
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(null);
+
             doThrow(new BusinessException(ErrorCode.SETTLEMENT_NOT_FOUND))
-                    .when(settlementValidator).validateTotals(any());
+                    .when(settlementValidator).validateTotals(null);
 
             assertThatThrownBy(() ->
                     dailySettlementTasklet.execute(contribution, context)
@@ -158,9 +151,8 @@ class DailySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("saveDaily() 내부 예외 발생 시 실패")
+        @DisplayName("saveDaily() 내부 예외 발생 시 전파된다")
         void execute_fail_saveDailyThrows() {
-
             Long userId = 1L;
             SettlementTotals totals = BatchHelperData.totals();
 
@@ -173,7 +165,8 @@ class DailySettlementTaskletTest {
             doNothing().when(settlementValidator).validateTotals(totals);
 
             doThrow(new RuntimeException("save fail"))
-                    .when(settlementSaver).saveDaily(anyLong(), any(), any());
+                    .when(settlementSaver)
+                    .saveDaily(anyLong(), any(), any());
 
             assertThatThrownBy(() ->
                     dailySettlementTasklet.execute(contribution, context)

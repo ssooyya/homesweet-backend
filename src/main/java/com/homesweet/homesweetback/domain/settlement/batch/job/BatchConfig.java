@@ -1,7 +1,6 @@
 package com.homesweet.homesweetback.domain.settlement.batch.job;
 
 import com.homesweet.homesweetback.domain.auth.entity.User;
-import com.homesweet.homesweetback.domain.auth.repository.UserRepository;
 import com.homesweet.homesweetback.domain.order.entity.Order;
 import com.homesweet.homesweetback.domain.settlement.batch.listener.*;
 import com.homesweet.homesweetback.domain.settlement.batch.step.aggregate.MonthlySettlementTasklet;
@@ -11,10 +10,9 @@ import com.homesweet.homesweetback.domain.settlement.batch.step.cancel.Settlemen
 import com.homesweet.homesweetback.domain.settlement.batch.step.cancel.SettlementCancelReader;
 import com.homesweet.homesweetback.domain.settlement.batch.step.cancel.SettlementCancelWriter;
 import com.homesweet.homesweetback.domain.settlement.batch.step.create.SettlementCreateProcessor;
-import com.homesweet.homesweetback.domain.settlement.batch.step.create.SettlementCreateReader;
 import com.homesweet.homesweetback.domain.settlement.batch.step.create.SettlementCreateWriter;
 import com.homesweet.homesweetback.domain.settlement.batch.step.aggregate.DailySettlementTasklet;
-import com.homesweet.homesweetback.domain.settlement.batch.zeroOffset.ZeroOffsetItemReader;
+import com.homesweet.homesweetback.domain.settlement.batch.step.create.ZeroOffsetItemReader;
 import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementCreateDto;
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
@@ -25,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 import org.hibernate.LazyInitializationException;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
-import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -33,6 +30,8 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.HashMap;
@@ -81,18 +80,19 @@ public class BatchConfig {
      */
     // step1 -> 신규 주문건 정산 생성
     @Bean
-    public Step settlementCreateStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementCreateProcessor settlementCreateProcessor, SettlementCreateWriter settlementCreateWriter, ZeroOffsetItemReader zeroOffsetItemReader, StepUpdateFlagListener stepUpdateFlagListener) {
+    public Step settlementCreateStep(JobRepository jobRepository, PlatformTransactionManager transactionManager, SettlementCreateProcessor settlementCreateProcessor, SettlementCreateWriter settlementCreateWriter, ZeroOffsetItemReader zeroOffsetItemReader, TaskExecutor taskExecutor) {
         return new StepBuilder("settlementCreateStep", jobRepository)
                 .<SettlementCreateDto, Settlement>chunk(1000, transactionManager)
                 .reader(zeroOffsetItemReader)
                 .processor(settlementCreateProcessor)
                 .writer(settlementCreateWriter)
-                .listener(stepUpdateFlagListener)
+//                .listener(stepUpdateFlagListener)
                 .listener(settlementSkipListener)
                 .listener(settlementStepListener)
                 .listener(settlementStepFailListener)
                 .listener(settlementSLAMonitorListener)
                 .listener(settlementChunkListener)
+//                .taskExecutor(taskExecutor())   // 병렬처리
                 .faultTolerant()
                 .retry(Exception.class) //
                 .retryLimit(3)
@@ -182,4 +182,11 @@ public class BatchConfig {
 
         return new SettlementCreateProcessor(settlementCalculator, settlementValidator, sellerCache);
     }
+//    @Bean
+//    public TaskExecutor taskExecutor() {
+//        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("batch-worker-");
+//        executor.setConcurrencyLimit(8);
+//        return executor;
+//    }
+
 }

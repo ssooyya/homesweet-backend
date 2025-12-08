@@ -124,7 +124,7 @@ class EmptyResponseTest {
     @Test
     @DisplayName("빈 연별 응답 생성 성공")
     void createEmptyYearly_success() {
-        YearMonth ym = YearMonth.of(2025, 1);
+        Short ym = 2025;
         Pageable pageable = PageRequest.of(0, 10);
 
         Page<YearlySettlementResponse> page =
@@ -238,19 +238,11 @@ class EmptyResponseTest {
             assertThat(res.year()).isEqualTo((short) ym.getYear());
             assertThat(res.month()).isEqualTo((byte) ym.getMonthValue());
         }
-        @Test
-        @DisplayName("YearMonth 가 null이면 NPE 발생")
-        void createEmptyYearly_fail_nullYearMonth() {
-            Pageable pageable = PageRequest.of(0, 10);
 
-            assertThatThrownBy(() ->
-                    emptyResponse.createEmptyYearly(null, pageable)
-            ).isInstanceOf(NullPointerException.class);
-        }
         @Test
         @DisplayName("pageable 이 null이면 IllegalArgumentException 발생")
         void createEmptyYearly_fail_nullPageable() {
-            YearMonth ym = YearMonth.of(2025, 1);
+            Short ym = 2025;
 
             assertThatThrownBy(() ->
                     emptyResponse.createEmptyYearly(ym, null)
@@ -261,7 +253,7 @@ class EmptyResponseTest {
         @Test
         @DisplayName("placeholder 크기가 1개가 아니면 실패")
         void createEmptyYearly_fail_wrongContentSize() {
-            YearMonth ym = YearMonth.of(2025, 1);
+            Short ym = 2025;
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<YearlySettlementResponse> page =

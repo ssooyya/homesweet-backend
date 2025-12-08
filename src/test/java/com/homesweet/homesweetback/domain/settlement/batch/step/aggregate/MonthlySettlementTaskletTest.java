@@ -3,9 +3,6 @@ package com.homesweet.homesweetback.domain.settlement.batch.step.aggregate;
 import com.homesweet.homesweetback.common.exception.BusinessException;
 import com.homesweet.homesweetback.common.exception.ErrorCode;
 import com.homesweet.homesweetback.domain.grade.service.GradeService;
-import com.homesweet.homesweetback.domain.settlement.aggregate.SettlementAggregator;
-import com.homesweet.homesweetback.domain.settlement.data.HelperData;
-import com.homesweet.homesweetback.domain.settlement.entity.WeeklySettlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.WeeklySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.util.calculator.SettlementCalculator;
@@ -25,14 +22,13 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -42,6 +38,7 @@ class MonthlySettlementTaskletTest {
 
     @InjectMocks
     private MonthlySettlementTasklet monthlySettlementTasklet;
+
     @Mock
     private WeeklySettlementRepository weeklySettlementRepository;
 
@@ -50,9 +47,6 @@ class MonthlySettlementTaskletTest {
 
     @Mock
     private SettlementValidator settlementValidator;
-
-    @Mock
-    private SettlementAggregator settlementAggregator;
 
     @Mock
     private SettlementSaver settlementSaver;
@@ -64,39 +58,35 @@ class MonthlySettlementTaskletTest {
     ChunkContext context = mock(ChunkContext.class);
 
     @BeforeEach
-    // 실제 aggregator 주입용
-    void injectRealAggregator() {
-        ReflectionTestUtils.setField(monthlySettlementTasklet, "cutoffString", "2025-11-25T00:00:00");
-        SettlementCalculator calculator = new SettlementCalculator(gradeService, settlementRepository);
-        SettlementAggregator realAgg = new SettlementAggregator(calculator);
-
-        ReflectionTestUtils.setField(monthlySettlementTasklet, "settlementAggregator", realAgg);
+    void init() {
+        ReflectionTestUtils.setField(
+                monthlySettlementTasklet,
+                "cutoffString",
+                "2025-11-25T00:00:00"
+        );
     }
 
     @Nested
     @DisplayName("성공 케이스")
-    class Success{
+    class Success {
+
         @Test
         @DisplayName("단일 사용자 월별 집계 성공")
         void execute_success_singleUser() {
             Long userId = 10L;
-
             YearMonth ym = YearMonth.of(2025, 11);
 
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(List.of(userId));
 
-            given(settlementRepository.sumTotals(
-                    eq(userId),
-                    any(LocalDateTime.class),
-                    any(LocalDateTime.class)
-            )).willReturn(new SettlementTotals(
-                    java.math.BigDecimal.TEN,
-                    java.math.BigDecimal.ONE,
-                    java.math.BigDecimal.ZERO,
-                    java.math.BigDecimal.ZERO,
-                    java.math.BigDecimal.valueOf(9)
-            ));
+            given(settlementRepository.sumTotals(eq(userId), any(), any()))
+                    .willReturn(new SettlementTotals(
+                            BigDecimal.TEN,
+                            BigDecimal.ONE,
+                            BigDecimal.ZERO,
+                            BigDecimal.ZERO,
+                            BigDecimal.valueOf(9)
+                    ));
 
             doNothing().when(settlementValidator).validateTotals(any());
 
@@ -104,8 +94,7 @@ class MonthlySettlementTaskletTest {
 
             assertThat(result).isEqualTo(RepeatStatus.FINISHED);
 
-            verify(settlementSaver, atLeastOnce())
-                    .saveMonthly(eq(userId), eq(ym), any(SettlementTotals.class));
+            verify(settlementSaver).saveMonthly(eq(userId), eq(ym), any(SettlementTotals.class));
         }
 
         @Test
@@ -116,11 +105,8 @@ class MonthlySettlementTaskletTest {
             given(settlementRepository.findDistinctUserIds())
                     .willReturn(userIds);
 
-            given(settlementRepository.sumTotals(
-                    anyLong(),
-                    any(LocalDateTime.class),
-                    any(LocalDateTime.class)
-            )).willReturn(SettlementTotals.empty());
+            given(settlementRepository.sumTotals(anyLong(), any(), any()))
+                    .willReturn(SettlementTotals.empty());
 
             doNothing().when(settlementValidator).validateTotals(any());
 
@@ -130,23 +116,14 @@ class MonthlySettlementTaskletTest {
                     .saveMonthly(anyLong(), any(YearMonth.class), any(SettlementTotals.class));
         }
     }
+
     @Nested
     @DisplayName("실패 케이스")
-    class Failure{
-        @BeforeEach
-        void useMockAggregator() {
-            // 실패 테스트에서는 mock aggregator 사용해야함
-            ReflectionTestUtils.setField(
-                    monthlySettlementTasklet,
-                    "settlementAggregator",
-                    settlementAggregator
-            );
-        }
+    class Failure {
 
         @Test
         @DisplayName("cutoffString 파싱 실패 → 예외 발생")
         void execute_fail_invalidCutoff() {
-
             ReflectionTestUtils.setField(
                     monthlySettlementTasklet,
                     "cutoffString",
@@ -159,8 +136,8 @@ class MonthlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("validator.validateTotals() 에서 BusinessException 발생")
-        void execute_fail_validatorThrows() {
+        @DisplayName("sumTotals가 null → NPE 발생")
+        void execute_fail_sumTotals_null() {
             Long userId = 10L;
 
             given(settlementRepository.findDistinctUserIds())
@@ -175,7 +152,7 @@ class MonthlySettlementTaskletTest {
         }
 
         @Test
-        @DisplayName("saveMonthly 중 예외 발생")
+        @DisplayName("saveMonthly 중 BusinessException 발생")
         void execute_fail_saveMonthlyError() {
             Long userId = 10L;
 

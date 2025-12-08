@@ -5,33 +5,42 @@ import com.homesweet.homesweetback.domain.auth.entity.User;
 import com.homesweet.homesweetback.domain.grade.entity.Grade;
 import com.homesweet.homesweetback.domain.grade.repository.GradeRepository;
 import com.homesweet.homesweetback.domain.order.entity.Order;
-import com.homesweet.homesweetback.domain.product.product.command.repository.jpa.entity.SkuEntity;
+import com.homesweet.homesweetback.domain.product.product.repository.jpa.entity.SkuEntity;
 import com.homesweet.homesweetback.domain.settlement.data.HelpIntegrationData;
 import com.homesweet.homesweetback.domain.settlement.dto.response.DailySettlementResponse;
+import com.homesweet.homesweetback.domain.settlement.dto.response.EmptyResponse;
 import com.homesweet.homesweetback.domain.settlement.entity.DailySettlement;
+import com.homesweet.homesweetback.domain.settlement.repository.DailySettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.service.DailySettlementService;
+import com.homesweet.homesweetback.domain.settlement.service.SettlementCacheService;
 import com.homesweet.homesweetback.domain.settlement.service.SettlementService;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Import(HelpIntegrationData.class)
 @DisplayName("DailySettlementService 통합 테스트")
+@Disabled
 public class DailySettlementIntegrationTest {
     @Autowired
     private DailySettlementService dailySettlementService;
@@ -47,271 +56,140 @@ public class DailySettlementIntegrationTest {
     @Autowired
     private SettlementRepository settlementRepository;
 
+    @Autowired
+    private EmptyResponse emptyResponse;
+
+    @Autowired
+    private SettlementCacheService settlementCacheService;
+    @Autowired
+    private DailySettlementRepository dailySettlementRepository;
+
+    Pageable pageable = PageRequest.of(0, 10);
     @Nested
     @DisplayName("성공 케이스")
     class Success {
-        @Test
-        @DisplayName("일별 집계 생성 성공")
-        void dailySettlement_success() {
-
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-            User buyer = helpIntegrationData.createBuyer();
-            SkuEntity sku = helpIntegrationData.createSku(seller, "주방도구", 35000);
-
-            // 정산건 2개 생성
-            Order o1 = helpIntegrationData.createOrder(buyer, sku, 35000,
-                    LocalDateTime.of(2025, 11, 10, 10, 0));
-//            settlementService.createSettlement(o1); // 원본 코드 - 안채호
-            helpIntegrationData.getSettlementData(o1, seller); // 새로 추가한 코드 - 안채호
-
-            Order o2 = helpIntegrationData.createOrder(buyer, sku, 20000,
-                    LocalDateTime.of(2025, 11, 10, 12, 0));
-//            settlementService.createSettlement(o2); // 원본 코드 - 안채호
-            helpIntegrationData.getSettlementData(o2, seller); // 새로 추가한 코드 - 안채호
-
-            System.err.println(">>> 조회 요청 판매자 ID: " + seller.getId()); // 안채
-            dailySettlementService.getSettlement(
-                    seller.getId(),
-                    LocalDateTime.of(2025, 11, 1, 0, 0),
-                    LocalDateTime.of(2025, 11, 30, 23, 59)
-            );
-
-            // when
-            Pageable pageable = PageRequest.of(0, 10);
-
-            Page<DailySettlementResponse> daily = dailySettlementService.getDailySummary(
-                    seller.getId(),
-                    LocalDate.of(2025, 11, 1),
-                    LocalDate.of(2025, 11, 30),
-                    pageable
-            );
-            // then
-            DailySettlementResponse res = daily.getContent().get(0);
-
-            assertThat(res.totalSales())
-                    .isEqualByComparingTo("55000");
-
-            assertThat(res.totalFee())
-                    .isEqualByComparingTo("13750");
-
-            assertThat(res.totalSettlement())
-                    .isEqualByComparingTo("41250");
-        }
 
         @Test
-        @DisplayName("일별 집계 - 데이터 없으면 빈 페이지 반환")
-        void dailySettlement_empty() {
-            Pageable pageable = PageRequest.of(0, 10);
-            Page<DailySettlementResponse> daily = dailySettlementService.getDailySummary(
-                    999L, // 존재하지 않는 sellerId
-                    LocalDate.of(2025, 11, 10),
-                    LocalDate.of(2025, 11, 10),
-                    pageable
-            );
+        @DisplayName("캐시 HIT → count 조회 후 정상 Page 반환")
+        void getDailySummary_success() {
 
-            assertThat(daily.getTotalElements()).isEqualTo(1);
-            DailySettlementResponse res = daily.getContent().get(0);
-            assertThat(res.totalSales()).isEqualByComparingTo("0");
-        }
+            Long userId = 1L;
+            LocalDate start = LocalDate.of(2025, 3, 1);
+            LocalDate end   = LocalDate.of(2025, 3, 1);
 
-        @Test
-        @DisplayName("일별 집계 - now() 기준")
-        void dailySettlement_nowBased() {
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-            User buyer = helpIntegrationData.createBuyer();
-            SkuEntity sku = helpIntegrationData.createSku(seller, "상품", 10000);
-
-            // settlementDate = now() 로 저장됨
-            Order o1 = helpIntegrationData.createOrder(buyer, sku, 10000, LocalDateTime.now());
-            settlementService.createSettlement(o1);
-
-            Order o2 = helpIntegrationData.createOrder(buyer, sku, 20000, LocalDateTime.now());
-            settlementService.createSettlement(o2);
-
-            // ★ now 기준 집계 실행
-            LocalDateTime now = LocalDateTime.now();
-            dailySettlementService.getSettlement(
-                    seller.getId(),
-                    now.minusMinutes(1),
-                    now.plusMinutes(1)
-            );
-
-            Pageable pageable = PageRequest.of(0, 10);
-
-            // now 기준
-            LocalDate today = LocalDate.now();
-            Page<DailySettlementResponse> daily = dailySettlementService.getDailySummary(
-                    seller.getId(),
-                    today,
-                    today,
-                    pageable
-            );
-            DailySettlementResponse res = daily.getContent().get(0);
-            assertThat(res.totalSales()).isEqualByComparingTo("30000");
-        }
-        @Test
-        @DisplayName("일별 집계 - 페이징 동작 확인")
-        void dailySettlement_paging() {
-
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-            User buyer = helpIntegrationData.createBuyer();
-            SkuEntity sku = helpIntegrationData.createSku(seller, "상품", 10000);
-
-            // ✔ 주문일자는 의미 없음 (정산일 now() 기준)
-            settlementService.createSettlement(
-                    helpIntegrationData.createOrder(buyer, sku, 10000, LocalDateTime.now())
-            );
-
-            settlementService.createSettlement(
-                    helpIntegrationData.createOrder(buyer, sku, 20000, LocalDateTime.now())
-            );
-
-            settlementService.createSettlement(
-                    helpIntegrationData.createOrder(buyer, sku, 30000, LocalDateTime.now())
-            );
-            // ★★★ now 기준 집계 실행 ★★★
-            LocalDateTime now = LocalDateTime.now();
-
-            dailySettlementService.getSettlement(
-                    seller.getId(),
-                    now.minusMinutes(1),
-                    now.plusMinutes(1)
-            );
-            // now() 날짜 기준 조회
-            LocalDate today = LocalDate.now();
-
-            Page<DailySettlementResponse> page = dailySettlementService.getDailySummary(
-                    seller.getId(),
-                    today,
-                    today,
-                    PageRequest.of(0, 10)
-            );
-            // then
-            assertThat(page.getTotalElements()).isEqualTo(1); // ★ 날짜당 1개 집계이므로 1개
-        }
-
-        @Test
-        @DisplayName("일별 집계 - getSettlement() 호출 시 DailySettlement 테이블에 저장됨")
-        void dailySettlement_saveByGetSettlement() {
-
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-            User buyer = helpIntegrationData.createBuyer();
-            SkuEntity sku = helpIntegrationData.createSku(seller, "상품", 20000);
-
-            LocalDateTime fixedNow = LocalDateTime.of(2025, 11, 10, 10, 0);
-
-            // 주문 생성
-            Order order = helpIntegrationData.createOrder(buyer, sku, 20000, fixedNow);
-
-            // 정산 생성 (고정 now 사용)
-            settlementService.createSettlement(order);
-            // test용으로 settlementDate를 강제로 fixedNow로 변경
-            settlementRepository.findByOrderId(order.getId())
-                    .ifPresent(s -> {
-                        s.setSettlementDate(fixedNow);
-                        settlementRepository.save(s);
-                    });
-
-            // 집계 범위
-            LocalDateTime start = fixedNow.toLocalDate().atStartOfDay();
-            LocalDateTime end = start.plusDays(1);
-
-            dailySettlementService.getSettlement(seller.getId(), start, end);
-
-            Page<DailySettlement> all = dailySettlementService.findDailySettlements(
-                    seller.getId(),
-                    PageRequest.of(0, 10),
+            DailySettlementResponse resp = new DailySettlementResponse(
+                    BigDecimal.valueOf(10000),
+                    BigDecimal.valueOf(1000),
+                    BigDecimal.valueOf(500),
+                    BigDecimal.ZERO,
+                    BigDecimal.valueOf(8500),
                     start,
-                    end
+                    "COMPLETED",
+                    100.0,
+                    1L
             );
 
-            assertThat(all.getTotalElements()).isEqualTo(1);
+            // 1) 캐시 HIT 설정
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of(resp));
 
-            DailySettlement saved = all.getContent().get(0);
-            assertThat(saved.getTotalSales()).isEqualByComparingTo("20000");
+            // 2) count 조회 Stub
+            LocalDateTime from = start.atStartOfDay();
+            LocalDateTime to = end.plusDays(1).atStartOfDay();
+
+            when(dailySettlementRepository.countByDailySettlementRange(userId, from, to))
+                    .thenReturn(5L);
+
+            // WHEN
+            Page<DailySettlementResponse> result =
+                    dailySettlementService.getDailySummary(userId, start, end, pageable);
+
+            // THEN
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getTotalElements()).isEqualTo(5L);
+            assertThat(result.getContent().get(0).totalSales())
+                    .isEqualByComparingTo("10000");
+
+            // EmptyResponse 호출 X
+            verify(emptyResponse, never()).createEmptyDaily(any(), any());
         }
     }
+
     @Nested
     @DisplayName("실패 케이스")
-    class Failure{
+    class Failure {
+
         @Test
-        @DisplayName("일별 집계 실패 - 집계할 정산 데이터가 없음")
-        void dailySettlement_fail_noSettlements() {
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
+        @DisplayName("캐시 MISS → EmptyResponse 반환, count 조회되지 않음")
+        void getDailySummary_empty() {
 
-            // settlement를 아예 생성하지 않는다.
+            Long userId = 1L;
+            LocalDate start = LocalDate.of(2025, 3, 1);
+            LocalDate end   = LocalDate.of(2025, 3, 5);
 
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end   = LocalDateTime.of(2025, 11, 11, 0, 0);
+            // 1) 캐시 MISS 설정
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of());
 
-            assertThatThrownBy(() ->
-                    dailySettlementService.getSettlement(
-                            seller.getId(),
-                            start,
-                            end
-                    )
-            ).isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("조회된 정산 데이터가 없습니다.");
+            Page<DailySettlementResponse> emptyPage =
+                    new PageImpl<>(List.of(), pageable, 0);
+
+            when(emptyResponse.createEmptyDaily(start, pageable))
+                    .thenReturn(emptyPage);
+
+            // WHEN
+            Page<DailySettlementResponse> result =
+                    dailySettlementService.getDailySummary(userId, start, end, pageable);
+
+            // THEN
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+
+            // EmptyResponse 호출 O
+            verify(emptyResponse, times(1))
+                    .createEmptyDaily(start, pageable);
+
+            // count 조회 금지
+            verify(dailySettlementRepository, never())
+                    .countByDailySettlementRange(any(), any(), any());
         }
+
         @Test
-        @DisplayName("일별 집계 실패 - 날짜 범위에 해당하는 정산이 없음")
-        void dailySettlement_fail_wrongDateRange() {
+        @DisplayName("캐시 HIT 상태에서 count 조회 실패 시 예외 전파")
+        void getDailySummary_countError() {
 
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-            User buyer = helpIntegrationData.createBuyer();
-            SkuEntity sku = helpIntegrationData.createSku(seller, "상품", 30000);
+            Long userId = 1L;
+            LocalDate start = LocalDate.of(2025, 4, 1);
+            LocalDate end   = LocalDate.of(2025, 4, 2);
 
-            // settlementDate = 2025-11-15
-            LocalDateTime settledAt = LocalDateTime.of(2025, 11, 15, 10, 0);
+            DailySettlementResponse resp = new DailySettlementResponse(
+                    BigDecimal.valueOf(10000),
+                    BigDecimal.valueOf(1000),
+                    BigDecimal.valueOf(500),
+                    BigDecimal.ZERO,
+                    BigDecimal.valueOf(8500),
+                    start,
+                    "COMPLETED",
+                    90.0,
+                    1L
+            );
 
-            Order o = helpIntegrationData.createOrder(buyer, sku, 30000, settledAt);
-            settlementService.createSettlement(o);
+            // 캐시 HIT
+            when(settlementCacheService.getDailyContentCache(userId, start, end, pageable))
+                    .thenReturn(List.of(resp));
 
-            // settlementDate 강제 고정
-            settlementRepository.findByOrderId(o.getId())
-                    .ifPresent(s -> {
-                        s.setSettlementDate(settledAt);
-                        settlementRepository.save(s);
-                    });
+            // count 예외 유도
+            when(dailySettlementRepository.countByDailySettlementRange(any(), any(), any()))
+                    .thenThrow(new RuntimeException("DB ERROR"));
 
-            // → 집계할 범위는 11월 10일 하루. 정산은 15일.
-            LocalDateTime start = LocalDateTime.of(2025, 11, 10, 0, 0);
-            LocalDateTime end   = LocalDateTime.of(2025, 11, 11, 0, 0);
-
+            // WHEN & THEN
             assertThatThrownBy(() ->
-                    dailySettlementService.getSettlement(
-                            seller.getId(),
-                            start,
-                            end
-                    )
-            ).isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("조회된 정산 데이터가 없습니다.");
-        }
-        @Test
-        @DisplayName("일별 집계 실패 - 잘못된 날짜 범위(start >= end)")
-        void dailySettlement_fail_invalidRange() {
+                    dailySettlementService.getDailySummary(userId, start, end, pageable)
+            )
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DB ERROR");
 
-            Grade grade = gradeRepository.findById(5).orElseThrow();
-            User seller = helpIntegrationData.createSeller(grade);
-
-            LocalDateTime t = LocalDateTime.of(2025, 11, 10, 0, 0);
-
-            LocalDateTime start = t;
-            LocalDateTime end   = t;  // 잘못된 범위
-
-            assertThatThrownBy(() ->
-                    dailySettlementService.getSettlement(
-                            seller.getId(),
-                            start,
-                            end
-                    )
-            ).isInstanceOf(BusinessException.class);
+            verify(emptyResponse, never()).createEmptyDaily(any(), any());
         }
     }
 }

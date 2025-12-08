@@ -9,6 +9,7 @@ import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementCrea
 import com.homesweet.homesweetback.domain.settlement.entity.Settlement;
 import com.homesweet.homesweetback.domain.settlement.repository.SettlementRepository;
 import com.homesweet.homesweetback.domain.settlement.dto.response.SettlementStatsDto;
+import com.homesweet.homesweetback.domain.settlement.service.SettlementCacheService;
 import com.homesweet.homesweetback.domain.settlement.util.vo.SettlementTotals;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ import java.util.Optional;
 public class SettlementCalculator {
     private final GradeService gradeService;
     private final SettlementRepository settlementRepository;
+
     // 정산 금액 계산
     public Result getResult(Order order, User seller) {
         Long totalSales = order.getTotalAmount();
@@ -63,6 +65,8 @@ public class SettlementCalculator {
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
 
         SettlementStatsDto stats = settlementRepository.findStats(userId, start, end);
+//        SettlementStatsDto stats = settlementCacheService.getSettlementStats(userId, start, end); -> 순환참조됨
+
         long totalCount = stats.totalCount() == null ? 0L : stats.totalCount();
         long completedCount = stats.completedCount() == null ? 0L : stats.completedCount();
 

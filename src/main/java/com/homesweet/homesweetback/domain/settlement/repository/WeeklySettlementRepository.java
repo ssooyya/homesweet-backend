@@ -35,6 +35,20 @@ public interface WeeklySettlementRepository extends JpaRepository<WeeklySettleme
     """)
     Page<WeeklySettlement> findByWeeklySettlementByRange(@Param("userId") Long userId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate, Pageable pageable);
 
+    // totalCount ONLY — 캐시에 꼭 필요
+    @Query("""
+        SELECT COUNT(w)
+        FROM WeeklySettlement w
+        WHERE w.userId = :userId
+          AND w.weekStartDate >= :start
+          AND w.weekStartDate < :end
+    """)
+    long countByRange(
+            @Param("userId") Long userId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
+
     @Modifying
     @Query(value = """
         INSERT INTO weekly_settlements (
